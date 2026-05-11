@@ -62,12 +62,26 @@ body{font-family:'Noto Sans TC',system-ui,sans-serif;font-size:13px;color:var(--
 .rt-sub{font-size:11px;text-align:center;color:#888;margin-bottom:6px}
 .rt-stats{display:flex;justify-content:center;gap:10px;font-size:11px;margin-top:4px;padding-bottom:8px}
 
-/* donate strip */
+/* donate strip (legacy, kept for backward compat) */
 .donate-strip{border-top:1px solid var(--border);background:var(--blue-light);padding:7px 10px}
 .ds-title{font-size:10px;color:var(--blue);margin-bottom:5px;font-weight:600}
 .dpills{display:flex;flex-wrap:wrap;gap:4px}
 .dpill{font-size:11px;background:#fff;border:1px solid #a0b4d6;color:var(--blue);border-radius:20px;padding:2px 9px;cursor:pointer;transition:background .1s}
 .dpill:hover{background:#dce8f8}
+
+/* dedicated donate panel (pulled out, separate from tables) */
+.dpanel{background:#fff;border:1px solid #a0b4d6;border-radius:12px;margin-top:18px;overflow:hidden}
+.dpanel-head{background:var(--blue-light);padding:10px 14px;border-bottom:1px solid #c4d0e6;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px}
+.dpanel-head h3{font-size:14px;font-weight:600;color:var(--blue)}
+.dpanel-head .subt{font-size:11px;color:#666;margin-top:2px}
+.dpanel-head .total{font-size:12px;color:var(--blue);background:#fff;border:1px solid #a0b4d6;border-radius:14px;padding:2px 10px;font-weight:500}
+.dpanel-body{padding:6px 14px}
+.dgrp{padding:9px 0;border-bottom:1px dashed #d8e0ee}
+.dgrp:last-child{border-bottom:none}
+.dgrp-title{font-size:12px;font-weight:600;color:var(--ink);margin-bottom:6px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.dgrp-title .owner{font-size:11px;color:#888;font-weight:400}
+.dgrp-title .count{font-size:11px;color:var(--blue);background:var(--blue-light);border-radius:12px;padding:1px 8px;font-weight:500}
+.dgrp-pills{display:flex;flex-wrap:wrap;gap:4px}
 
 /* detail panel */
 .detail{background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px;margin-top:14px}
@@ -132,7 +146,6 @@ body{font-family:'Noto Sans TC',system-ui,sans-serif;font-size:13px;color:var(--
   <div class="tabs">
     <button class="tab on" onclick="sw('vis')">圓桌視圖</button>
     <button class="tab" onclick="sw('mgmt')">名單管理</button>
-    <button class="tab" onclick="sw('cfg')">設定</button>
   </div>
 
   <!-- 圓桌視圖 -->
@@ -146,6 +159,7 @@ body{font-family:'Noto Sans TC',system-ui,sans-serif;font-size:13px;color:var(--
     <div class="gsel" id="gsel"></div>
     <div class="tgrid" id="tgrid"></div>
     <div class="detail" id="detail" style="display:none"></div>
+    <div id="dpanel"></div>
   </div>
 
   <!-- 名單管理 -->
@@ -206,11 +220,39 @@ body{font-family:'Noto Sans TC',system-ui,sans-serif;font-size:13px;color:var(--
 </div>
 
 <script>
-const SK='qianren_rt_v6';
+const SK='qianren_rt_v7';
 let D=load(), selGroup=null, selSeat=null, lastTid=null;
 
 function load(){
-  try{const r=localStorage.getItem(SK);if(r)return JSON.parse(r);}catch(e){}
+  try{
+    const r=localStorage.getItem(SK);
+    if(r){
+      const d=JSON.parse(r);
+      // 遷移：移除教定區壇主名稱
+      const g1=d.groups.find(g=>g.id==='g1');
+      if(g1&&g1.owner==='謝壇主')g1.owner='';
+      // 遷移：若無素環壇主分組則自動補入
+      if(!d.groups.find(g=>g.id==='g3')){
+        d.groups.splice(1,0,{id:'g3',name:'素環',owner:'素環壇主',tables:[
+          {id:'t5',label:'佈施名單',seats:Array.from({length:8},(_,i)=>({id:'su'+(i+1),name:'道親',status:'donate',note:'無法出席，以佈施方式呈現'}))},
+          {id:'t6',label:'第三桌',seats:Array.from({length:10},(_,i)=>({id:'sv'+(i+1),name:'',status:'empty',note:''}))}
+        ]});
+        try{localStorage.setItem(SK,JSON.stringify(d));}catch(e){}
+      }
+      // 遷移：刪除素環的佈施名單桌
+      if(g3)g3.tables=g3.tables.filter(t=>t.id!=='t5');
+      // 遷移：若素環已存在但缺第三桌則補入
+      const g3=d.groups.find(g=>g.id==='g3');
+      if(g3&&!g3.tables.find(t=>t.id==='t6')){
+        g3.tables.push({id:'t6',label:'第三桌',seats:Array.from({length:8},(_,i)=>({id:'sv'+(i+1),name:'',status:'empty',note:''}))});
+        try{localStorage.setItem(SK,JSON.stringify(d));}catch(e){}
+      }
+      // 遷移：第三桌若超過8位則裁切至8位
+      const t6=g3&&g3.tables.find(t=>t.id==='t6');
+      if(t6&&t6.seats.length>8){t6.seats=t6.seats.slice(0,8);try{localStorage.setItem(SK,JSON.stringify(d));}catch(e){}}
+      return d;
+    }
+  }catch(e){}
   return def();
 }
 
@@ -218,18 +260,18 @@ function def(){
   return {
     cfg:{name:'千人宴｜教定區',date:'',note:'呼籲各壇主廣邀道親前賢補位'},
     groups:[
-      {id:'g1',name:'教定區',owner:'謝壇主',tables:[
+      {id:'g1',name:'教定區',owner:'',tables:[
         {id:'t1',label:'第一桌',seats:[
-          {id:'a1',name:'謝壇主',status:'attend',note:''},
-          {id:'a2',name:'謝壇主',status:'attend',note:''},
-          {id:'a3',name:'謝壇主',status:'attend',note:''},
-          {id:'a4',name:'謝壇主',status:'attend',note:''},
-          {id:'a5',name:'謝壇主',status:'attend',note:''},
-          {id:'a6',name:'謝壇主',status:'attend',note:''},
-          {id:'a7',name:'謝壇主',status:'attend',note:''},
-          {id:'a8',name:'謝壇主',status:'attend',note:''},
-          {id:'a9',name:'謝壇主',status:'attend',note:''},
-          {id:'a10',name:'謝壇主',status:'attend',note:''},
+          {id:'a1',name:'道親',status:'attend',note:''},
+          {id:'a2',name:'道親',status:'attend',note:''},
+          {id:'a3',name:'道親',status:'attend',note:''},
+          {id:'a4',name:'道親',status:'attend',note:''},
+          {id:'a5',name:'道親',status:'attend',note:''},
+          {id:'a6',name:'道親',status:'attend',note:''},
+          {id:'a7',name:'道親',status:'attend',note:''},
+          {id:'a8',name:'道親',status:'attend',note:''},
+          {id:'a9',name:'道親',status:'attend',note:''},
+          {id:'a10',name:'道親',status:'attend',note:''},
         ]},
         {id:'t2',label:'第二桌',seats:[
           {id:'b1',name:'范植勇',status:'attend',note:''},
@@ -246,19 +288,14 @@ function def(){
           {id:'b12',name:'曾玉錦',status:'donate',note:'佈施但無法出席'},
         ]},
       ]},
+      {id:'g3',name:'素環',owner:'素環壇主',tables:[
+        {id:'t6',label:'第三桌',seats:Array.from({length:8},(_,i)=>({id:'sv'+(i+1),name:'',status:'empty',note:''}))},
+      ]},
       {id:'g2',name:'茶道',owner:'錦秀壇主',tables:[
         {id:'t3',label:'第一桌',seats:Array.from({length:10},(_,i)=>({id:'c'+(i+1),name:'道親',status:'attend',note:''}))},
         {id:'t4',label:'第二桌',seats:[
           {id:'d1',name:'道親',status:'attend',note:''},
           ...Array.from({length:9},(_,i)=>({id:'d'+(i+2),name:'',status:'empty',note:'有繳費但缺席'})),
-        ]},
-      ]},
-      {id:'g3',name:'素環',owner:'樹環壇主',tables:[
-        {id:'t5',label:'第一桌',seats:[
-          ...Array.from({length:8},(_,i)=>({id:'e'+(i+1),name:'道親',status:'attend',note:''})),
-          {id:'e9',name:'',status:'empty',note:''},
-          {id:'e10',name:'',status:'empty',note:''},
-          ...Array.from({length:8},(_,i)=>({id:'es'+(i+1),name:'道親'+(i+1),status:'donate',note:'遇拜拜無法出席'})),
         ]},
       ]},
     ]
@@ -279,7 +316,7 @@ function sw(t){
   ['s-vis','s-mgmt','s-cfg'].forEach(id=>document.getElementById(id).classList.toggle('on',id==='s-'+t));
 }
 
-function render(){renderSbar();renderGsel();renderTgrid();renderMgmt();renderCfg();}
+function render(){renderSbar();renderGsel();renderTgrid();renderDonatePanel();renderMgmt();renderCfg();}
 
 function renderSbar(){
   const s=stats(allSeats());
@@ -302,7 +339,6 @@ function renderTgrid(){
   const tables=groups.flatMap(g=>g.tables.map(t=>({...t,gname:g.name,owner:g.owner,gid:g.id})));
   document.getElementById('tgrid').innerHTML=tables.map(t=>{
     const seatSeats=t.seats.filter(s=>s.status!=='donate');
-    const donateSeats=t.seats.filter(s=>s.status==='donate');
     const s=stats(t.seats);
     const n=seatSeats.length;
     const sz=190,cx=sz/2,cy=sz/2,tr=56,sr=15;
@@ -321,11 +357,6 @@ function renderTgrid(){
     }).join('');
     const isSel=selSeat&&selSeat.tid===t.id;
     const cLabel=s.empty>0?s.empty+'空位':'滿座';
-    const donateHtml=donateSeats.length>0?`
-      <div class="donate-strip">
-        <div class="ds-title">佈施 +1500（不佔位）共 ${donateSeats.length} 位</div>
-        <div class="dpills">${donateSeats.map(d=>`<span class="dpill" onclick="openSeat('${t.id}','${d.id}');event.stopPropagation()">${d.name||'未命名'}</span>`).join('')}</div>
-      </div>`:'';
     return `<div class="rt-card${isSel?' sel':''}" onclick="selectTable('${t.id}')">
   <div class="rt-top">
     <div class="rt-title">${t.label}</div>
@@ -341,9 +372,48 @@ function renderTgrid(){
       ${s.empty?`<span style="color:#8b1a1a">空 ${s.empty}</span>`:''}
     </div>
   </div>
-  ${donateHtml}
 </div>`;
   }).join('');
+}
+
+function renderDonatePanel(){
+  // Collect all donate seats across all groups (respect group filter if selected)
+  const UNIT=1500;
+  const groups=selGroup?D.groups.filter(g=>g.id===selGroup):D.groups;
+  const groupData=groups.map(g=>{
+    const items=g.tables.flatMap(t=>t.seats.filter(s=>s.status==='donate').map(s=>({...s,tid:t.id,tlabel:t.label})));
+    return {gid:g.id,gname:g.name,owner:g.owner,items};
+  }).filter(g=>g.items.length>0);
+  const total=groupData.reduce((a,g)=>a+g.items.length,0);
+  const totalAmt=total*UNIT;
+  const el=document.getElementById('dpanel');
+  if(total===0){el.innerHTML='';return;}
+  const fmt=n=>n.toLocaleString('zh-TW');
+  el.innerHTML=`<div class="dpanel">
+    <div class="dpanel-head">
+      <div>
+        <h3>佈施名單（人不到，不佔位）</h3>
+        <div class="subt">每位 +${fmt(UNIT)} · 已從各圓桌中拉出獨立表列</div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <span class="total">共 ${total} 位</span>
+        <span class="total" style="background:var(--blue);color:#fff;border-color:var(--blue)">合計 NT$ ${fmt(totalAmt)}</span>
+      </div>
+    </div>
+    <div class="dpanel-body">
+      ${groupData.map(g=>`
+        <div class="dgrp">
+          <div class="dgrp-title">
+            <span>${g.gname}</span>
+            <span class="owner">· ${g.owner}</span>
+            <span class="count">${g.items.length} 位 · NT$ ${fmt(g.items.length*UNIT)}</span>
+          </div>
+          <div class="dgrp-pills">
+            ${g.items.map(it=>`<span class="dpill" title="${it.tlabel}${it.note?' · '+it.note:''}" onclick="openSeat('${it.tid}','${it.id}')">${it.name||'未命名'}</span>`).join('')}
+          </div>
+        </div>`).join('')}
+    </div>
+  </div>`;
 }
 
 function selectTable(tid,silent){
