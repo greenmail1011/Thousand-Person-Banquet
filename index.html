@@ -30,9 +30,9 @@ body{font-family:'Noto Sans TC',system-ui,sans-serif;font-size:13px;color:var(--
 .sec{display:none}.sec.on{display:block}
 
 /* summary */
-.sbar{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
+.sbar{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px;align-items:start}
 .sc{background:var(--paper2);border-radius:8px;padding:10px 12px}
-.sc .n{font-size:20px;font-weight:700}
+.sc .n{font-size:32px;font-weight:700;line-height:1.1}
 .sc .l{font-size:11px;color:#888;margin-top:2px}
 .sc.red{background:var(--red-light)}.sc.red .n{color:var(--red)}
 .sc.grn{background:var(--green-light)}.sc.grn .n{color:var(--green)}
@@ -43,7 +43,7 @@ body{font-family:'Noto Sans TC',system-ui,sans-serif;font-size:13px;color:var(--
 .leg{display:flex;align-items:center;gap:5px;font-size:12px;color:#666}
 .dot{width:13px;height:13px;border-radius:50%;flex-shrink:0}
 .dot.attend{background:#1a5c3a}.dot.donate{background:#1a3a6b}
-.dot.empty{background:#e8ddd0;border:1.5px dashed #bbb}
+.dot.empty{background:#f9eeee;border:1.5px dashed #8b1a1a}
 
 /* group chips */
 .gsel{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
@@ -97,7 +97,7 @@ body{font-family:'Noto Sans TC',system-ui,sans-serif;font-size:13px;color:var(--
 .si:hover{border-color:var(--gold)}
 .sdot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
 .sdot.attend{background:#1a5c3a}.sdot.donate{background:#1a3a6b}
-.sdot.empty{background:#e8ddd0;border:1.5px dashed #aaa}
+.sdot.empty{background:#f9eeee;border:1.5px dashed #8b1a1a}
 .sname{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sstatus{font-size:10px;color:#999}
 .donate-section{margin-top:10px;padding-top:10px;border-top:1px solid var(--border)}
@@ -158,7 +158,7 @@ body{font-family:'Noto Sans TC',system-ui,sans-serif;font-size:13px;color:var(--
   <div class="sec on" id="s-vis">
     <div class="sbar" id="sbar"></div>
     <div class="legend">
-      <div class="leg"><div class="dot attend"></div>人到 +1500</div>
+      <div class="leg"><div class="dot attend"></div>佈施 +1500（出席）</div>
       <div class="leg"><div class="dot donate"></div>佈施 +1500（不出席）</div>
       <div class="leg"><div class="dot empty"></div>空位待補</div>
     </div>
@@ -326,11 +326,25 @@ function render(){renderSbar();renderGsel();renderTgrid();renderDonatePanel();re
 
 function renderSbar(){
   const s=stats(allSeats());
+  const g1=D.groups.find(g=>g.id==='g1');
+  const attendG1=g1?g1.tables.flatMap(t=>t.seats).filter(s=>s.status==='attend').length:0;
+  const emptyBreakdown=D.groups.map(g=>{
+    const e=g.tables.flatMap(t=>t.seats).filter(s=>s.status==='empty').length;
+    return e>0?`${g.name} ${e} 位`:'';
+  }).filter(Boolean).join('、');
+  const emptyLines=D.groups.map(g=>{
+    const e=g.tables.flatMap(t=>t.seats).filter(s=>s.status==='empty').length;
+    return e>0?`<div style="font-size:10px;color:#b04040;margin-top:2px">${g.name} ${e} 位</div>`:'';
+  }).filter(Boolean).join('');
+  const seatLines=D.groups.map(g=>{
+    const seats=g.tables.flatMap(t=>t.seats).filter(s=>s.status!=='donate');
+    return seats.length>0?`<div style="font-size:10px;color:#666;margin-top:2px">${g.name} ${seats.length} 位</div>`:'';
+  }).filter(Boolean).join('');
   document.getElementById('sbar').innerHTML=`
-    <div class="sc grn"><div class="n">${s.attend}</div><div class="l">人到 +1500</div></div>
-    <div class="sc blu"><div class="n">${s.donate}</div><div class="l">佈施 +1500</div></div>
-    <div class="sc red"><div class="n">${s.empty}</div><div class="l">空位待補</div></div>
-    <div class="sc"><div class="n">${s.attend+s.empty}</div><div class="l">實際席位數</div></div>`;
+    <div class="sc grn"><div class="n">${attendG1}</div><div class="l">佈施 +1500（出席）</div></div>
+    <div class="sc blu"><div class="n">${s.donate}</div><div class="l">佈施 +1500（不出席）</div></div>
+    <div class="sc red"><div class="n">${s.empty}</div><div class="l">空位待補</div>${emptyLines}</div>
+    <div class="sc"><div class="n">${s.attend+s.empty}</div><div class="l">實際席位數</div>${seatLines}</div>`;
 }
 
 function renderGsel(){
@@ -360,11 +374,11 @@ function renderTgrid(){
       const x=(cx+tr*Math.cos(a)).toFixed(1);
       const y=(cy+tr*Math.sin(a)).toFixed(1);
       const yt=(parseFloat(y)+4).toFixed(1);
-      const col=seat.status==='attend'?'#1a5c3a':'#e8ddd0';
-      const stk=seat.status==='empty'?'#bbb':col;
+      const col=seat.status==='attend'?'#1a5c3a':'#f9eeee';
+      const stk=seat.status==='empty'?'#8b1a1a':col;
       const dash=seat.status==='empty'?'stroke-dasharray="3 2"':'';
-      const nm=seat.name?(seat.name.length>2?seat.name.slice(-2):seat.name):'';
-      const tc=seat.status==='attend'?'#fff':'#aaa';
+      const nm=seat.status==='empty'?'空':(seat.name?(seat.name.length>2?seat.name.slice(-2):seat.name):'');
+      const tc=seat.status==='attend'?'#fff':'#8b1a1a';
       return `<circle cx="${x}" cy="${y}" r="${sr}" fill="${col}" stroke="${stk}" stroke-width="1.5" ${dash} style="cursor:pointer" onclick="openSeat('${t.id}','${seat.id}')"/>
 <text x="${x}" y="${yt}" text-anchor="middle" font-size="9" fill="${tc}" font-family="sans-serif" style="pointer-events:none;user-select:none">${nm}</text>`;
     }).join('');
@@ -381,7 +395,7 @@ function renderTgrid(){
     </svg>
     <div class="rt-stats">
       <span style="color:#1a5c3a">到 ${s.attend}</span>
-      ${s.empty?`<span style="color:#8b1a1a">空 ${s.empty}</span>`:''}
+      ${s.empty?`<span style="color:#8b1a1a;font-weight:600">空 ${s.empty}</span>`:''}
     </div>
   </div>
 </div>`;
@@ -390,8 +404,7 @@ function renderTgrid(){
   <div class="grp-section-head">
     <span class="gname">${g.name}</span>
     ${g.owner?`<span class="gowner">${g.owner}</span>`:''}
-    <span class="gbadge">出席 ${gStats.attend} · 空位 ${gStats.empty}</span>
-    ${donateCount>0?`<span class="gbadge" style="background:var(--blue-light);color:var(--blue);border:1px solid #a0b4d6;border-radius:12px;padding:2px 9px">佈施 ${donateCount} 位 · NT$ ${fmt(donateCount*1500)}</span>`:''}
+    <span class="gbadge"><span style="color:#1a5c3a;font-weight:600">出席 ${gStats.attend}</span> · <span style="color:#8b1a1a;font-weight:600">空位 ${gStats.empty}</span></span>
   </div>
   <div class="grp-section-body">${cards}</div>
 </div>`;
@@ -399,39 +412,78 @@ function renderTgrid(){
 }
 
 function renderDonatePanel(){
-  // Collect all donate seats across all groups (respect group filter if selected)
   const UNIT=1500;
   const groups=selGroup?D.groups.filter(g=>g.id===selGroup):D.groups;
-  const groupData=groups.map(g=>{
+  const fmt=n=>n.toLocaleString('zh-TW');
+  const el=document.getElementById('dpanel');
+
+  // 不出席佈施
+  const absentData=groups.map(g=>{
     const items=g.tables.flatMap(t=>t.seats.filter(s=>s.status==='donate').map(s=>({...s,tid:t.id,tlabel:t.label})));
     return {gid:g.id,gname:g.name,owner:g.owner,items};
   }).filter(g=>g.items.length>0);
-  const total=groupData.reduce((a,g)=>a+g.items.length,0);
-  const totalAmt=total*UNIT;
-  const el=document.getElementById('dpanel');
-  if(total===0){el.innerHTML='';return;}
-  const fmt=n=>n.toLocaleString('zh-TW');
-  el.innerHTML=`<div class="dpanel">
-    <div class="dpanel-head">
-      <div>
-        <h3>佈施名單（不出席）</h3>
-        <div class="subt" style="color:#8b4a1a;font-weight:500">備註：素環壇主募得有1位捐款26,000不納入教定區</div>
+  const absentTotal=absentData.reduce((a,g)=>a+g.items.length,0);
+
+  // 會出席佈施（排除茶道）
+  const attendData=groups.filter(g=>g.id!=='g2').map(g=>{
+    const items=g.tables.flatMap(t=>t.seats.filter(s=>s.status==='attend'&&s.name).map(s=>({...s,tid:t.id,tlabel:t.label})));
+    return {gid:g.id,gname:g.name,owner:g.owner,items};
+  }).filter(g=>g.items.length>0);
+  const attendTotal=attendData.reduce((a,g)=>a+g.items.length,0);
+
+  if(absentTotal===0&&attendTotal===0){el.innerHTML='';return;}
+
+  const renderGroup=(g,status)=>`
+    <div class="dgrp">
+      <div class="dgrp-title">
+        <span>${g.gname}</span>
+        ${g.owner?`<span class="owner">· ${g.owner}</span>`:''}
+        <span class="count">${g.items.length} 位 · NT$ ${fmt(g.items.length*UNIT)}</span>
+      </div>
+      <div class="dgrp-pills">
+        ${g.items.map(it=>`<span class="dpill" title="${it.tlabel}${it.note?' · '+it.note:''}" onclick="openSeat('${it.tid}','${it.id}')">${it.name||'未命名'}</span>`).join('')}
+      </div>
+    </div>`;
+
+  const grandTotal=(absentTotal+attendTotal)*UNIT;
+  el.innerHTML=`
+    <div style="background:var(--gold-light);border:1.5px solid var(--gold);border-radius:12px;padding:14px 18px;">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px">
+        <span style="font-size:13px;font-weight:600;color:var(--red)">教定區總計金額</span>
+        <span style="font-size:20px;font-weight:700;color:var(--red)">NT$ ${fmt(grandTotal)}</span>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${attendTotal>0?`<div style="flex:1;min-width:120px;background:#fff;border:1px solid #d4b896;border-radius:8px;overflow:hidden">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;cursor:pointer;user-select:none" onclick="togglePanel('dp-attend')">
+            <div>
+              <div style="font-size:11px;color:#888;margin-bottom:2px">會出席</div>
+              <div style="font-size:14px;font-weight:700;color:var(--green)">${attendTotal} 位</div>
+              <div style="font-size:11px;color:#666;margin-top:1px">NT$ ${fmt(attendTotal*UNIT)}</div>
+            </div>
+            <span id="dp-attend-arrow" style="font-size:11px;color:#aaa">▶ 展開</span>
+          </div>
+          <div id="dp-attend" style="display:none;border-top:1px solid #eedfc0"><div class="dpanel-body">${attendData.map(g=>renderGroup(g,'attend')).join('')}</div></div>
+        </div>`:''}
+        <div style="display:flex;align-items:center;font-size:16px;color:#bbb">＋</div>
+        ${absentTotal>0?`<div style="flex:1;min-width:120px;background:#fff;border:1px solid #d4b896;border-radius:8px;overflow:hidden">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;cursor:pointer;user-select:none" onclick="togglePanel('dp-absent')">
+            <div>
+              <div style="font-size:11px;color:#888;margin-bottom:2px">不出席佈施</div>
+              <div style="font-size:14px;font-weight:700;color:var(--blue)">${absentTotal} 位</div>
+              <div style="font-size:11px;color:#666;margin-top:1px">NT$ ${fmt(absentTotal*UNIT)}</div>
+            </div>
+            <span id="dp-absent-arrow" style="font-size:11px;color:#aaa">▶ 展開</span>
+          </div>
+          <div id="dp-absent" style="display:none;border-top:1px solid #eedfc0">
+            <div class="dpanel-body">
+              <div style="font-size:11px;color:#8b4a1a;font-weight:500;padding:6px 0 2px">備註：素環壇主募得有1位捐款26,000不納入教定區</div>
+              ${absentData.map(g=>renderGroup(g,'donate')).join('')}
+            </div>
+          </div>
+        </div>`:''}
       </div>
     </div>
-    <div class="dpanel-body">
-      ${groupData.map(g=>`
-        <div class="dgrp">
-          <div class="dgrp-title">
-            <span>${g.gname}</span>
-            <span class="owner">· ${g.owner}</span>
-            <span class="count">${g.items.length} 位 · NT$ ${fmt(g.items.length*UNIT)}</span>
-          </div>
-          <div class="dgrp-pills">
-            ${g.items.map(it=>`<span class="dpill" title="${it.tlabel}${it.note?' · '+it.note:''}" onclick="openSeat('${it.tid}','${it.id}')">${it.name||'未命名'}</span>`).join('')}
-          </div>
-        </div>`).join('')}
-    </div>
-  </div>`;
+  `;
 }
 
 function selectTable(tid,silent){
@@ -574,6 +626,15 @@ function resetAll(){
   D=def();lastTid=null;
   document.getElementById('detail').style.display='none';
   sv();
+}
+
+function togglePanel(id){
+  const el=document.getElementById(id);
+  const arrow=document.getElementById(id+'-arrow');
+  if(!el)return;
+  const open=el.style.display==='none';
+  el.style.display=open?'block':'none';
+  if(arrow)arrow.textContent=open?'▼ 收合':'▶ 展開';
 }
 
 // close modal on overlay click
