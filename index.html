@@ -51,7 +51,13 @@ body{font-family:'Noto Sans TC',system-ui,sans-serif;font-size:13px;color:var(--
 .gchip.on{background:var(--red-light);border-color:var(--red);color:var(--red);font-weight:500}
 
 /* table grid */
-.tgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:16px}
+.tgrid{display:flex;flex-direction:column;gap:20px}
+.grp-section{background:#fff;border:1px solid var(--border);border-radius:14px;overflow:hidden}
+.grp-section-head{display:flex;align-items:center;gap:10px;padding:10px 16px;background:var(--paper2);border-bottom:1px solid var(--border)}
+.grp-section-head .gname{font-size:13px;font-weight:700;color:var(--ink)}
+.grp-section-head .gowner{font-size:11px;color:#888}
+.grp-section-head .gbadge{margin-left:auto;font-size:11px;color:#888;background:var(--border);border-radius:12px;padding:2px 9px}
+.grp-section-body{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;padding:12px}
 
 /* round table card */
 .rt-card{background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden;cursor:pointer;transition:border-color .15s}
@@ -153,7 +159,7 @@ body{font-family:'Noto Sans TC',system-ui,sans-serif;font-size:13px;color:var(--
     <div class="sbar" id="sbar"></div>
     <div class="legend">
       <div class="leg"><div class="dot attend"></div>人到 +1500</div>
-      <div class="leg"><div class="dot donate"></div>佈施 +1500（不佔位）</div>
+      <div class="leg"><div class="dot donate"></div>佈施 +1500（不出席）</div>
       <div class="leg"><div class="dot empty"></div>空位待補</div>
     </div>
     <div class="gsel" id="gsel"></div>
@@ -336,8 +342,15 @@ function selGrp(id){selGroup=id;selSeat=null;lastTid=null;document.getElementByI
 
 function renderTgrid(){
   const groups=selGroup?D.groups.filter(g=>g.id===selGroup):D.groups;
-  const tables=groups.flatMap(g=>g.tables.map(t=>({...t,gname:g.name,owner:g.owner,gid:g.id})));
-  document.getElementById('tgrid').innerHTML=tables.map(t=>{
+  document.getElementById('tgrid').innerHTML=groups.map(g=>{
+    const tables=g.tables.map(t=>({...t,gname:g.name,owner:g.owner,gid:g.id}));
+    const visibleTables=tables.filter(t=>t.seats.some(s=>s.status!=='donate'));
+    if(!visibleTables.length)return'';
+    const gStats=stats(g.tables.flatMap(t=>t.seats));
+    const ownerStr=g.owner?`· ${g.owner}`:'';
+    const donateCount=g.tables.flatMap(t=>t.seats).filter(s=>s.status==='donate').length;
+    const fmt=n=>n.toLocaleString('zh-TW');
+    const cards=visibleTables.map(t=>{
     const seatSeats=t.seats.filter(s=>s.status!=='donate');
     const s=stats(t.seats);
     const n=seatSeats.length;
@@ -360,7 +373,6 @@ function renderTgrid(){
     return `<div class="rt-card${isSel?' sel':''}" onclick="selectTable('${t.id}')">
   <div class="rt-top">
     <div class="rt-title">${t.label}</div>
-    <div class="rt-sub">${t.gname} · ${t.owner}</div>
     <svg width="${sz}" height="${sz}" viewBox="0 0 ${sz} ${sz}" style="display:block;margin:0 auto">
       <circle cx="${cx}" cy="${cy}" r="28" fill="#fdf8f0" stroke="#d4b896" stroke-width="1.5"/>
       <text x="${cx}" y="${cy-4}" text-anchor="middle" font-size="11" fill="#8a6d28" font-family="sans-serif">${s.attend}/${n}</text>
@@ -372,6 +384,16 @@ function renderTgrid(){
       ${s.empty?`<span style="color:#8b1a1a">空 ${s.empty}</span>`:''}
     </div>
   </div>
+</div>`;
+    }).join('');
+    return `<div class="grp-section">
+  <div class="grp-section-head">
+    <span class="gname">${g.name}</span>
+    ${g.owner?`<span class="gowner">${g.owner}</span>`:''}
+    <span class="gbadge">出席 ${gStats.attend} · 空位 ${gStats.empty}</span>
+    ${donateCount>0?`<span class="gbadge" style="background:var(--blue-light);color:var(--blue);border:1px solid #a0b4d6;border-radius:12px;padding:2px 9px">佈施 ${donateCount} 位 · NT$ ${fmt(donateCount*1500)}</span>`:''}
+  </div>
+  <div class="grp-section-body">${cards}</div>
 </div>`;
   }).join('');
 }
@@ -392,12 +414,8 @@ function renderDonatePanel(){
   el.innerHTML=`<div class="dpanel">
     <div class="dpanel-head">
       <div>
-        <h3>佈施名單（人不到，不佔位）</h3>
-        <div class="subt">每位 +${fmt(UNIT)} · 已從各圓桌中拉出獨立表列</div>
-      </div>
-      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-        <span class="total">共 ${total} 位</span>
-        <span class="total" style="background:var(--blue);color:#fff;border-color:var(--blue)">合計 NT$ ${fmt(totalAmt)}</span>
+        <h3>佈施名單（不出席）</h3>
+        <div class="subt" style="color:#8b4a1a;font-weight:500">備註：素環壇主募得有1位捐款26,000不納入教定區</div>
       </div>
     </div>
     <div class="dpanel-body">
