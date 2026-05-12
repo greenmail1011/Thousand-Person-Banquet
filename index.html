@@ -313,6 +313,9 @@ function def(){
           {id:'b10',name:'戴瑋德',status:'attend',note:'',transport:'self'},
           {id:'b11',name:'彭永才',status:'donate',note:'佈施但無法出席'},
           {id:'b12',name:'曾玉錦',status:'donate',note:'佈施但無法出席'},
+          {id:'b13',name:'沈元武',status:'donate',note:'佈施但無法出席'},
+          {id:'b14',name:'林花粧',status:'donate',note:'佈施但無法出席'},
+          {id:'b15',name:'沈綵甄',status:'donate',note:'佈施但無法出席'},
         ]},
       ]},
       {id:'g3',name:'素環',owner:'素環壇主',tables:[
@@ -382,6 +385,14 @@ function migrate(d){
       let fi=0;
       t4.seats.forEach(s=>{if(s.status==='empty'&&fi<toAdd.length){s.name=toAdd[fi];s.status='attend';s.tag='教定區';fi++;}});
     }
+  }
+  // 遷移：加入沈元武、林花粧、沈綵甄至教定區第二桌（不出席佈施）
+  const g1t2donate=d.groups.find(g=>g.id==='g1')?.tables?.find(t=>t.id==='t2');
+  if(g1t2donate){
+    [{id:'b13',name:'沈元武'},{id:'b14',name:'林花粧'},{id:'b15',name:'沈綵甄'}].forEach(nm=>{
+      if(!g1t2donate.seats.find(s=>s.id===nm.id))
+        g1t2donate.seats.push({id:nm.id,name:nm.name,status:'donate',note:'佈施但無法出席'});
+    });
   }
   // 遷移：加入林佳慧、戴瑋德至教定區第二桌
   const g1t2new=d.groups.find(g=>g.id==='g1')?.tables?.find(t=>t.id==='t2');
