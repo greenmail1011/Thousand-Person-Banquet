@@ -327,7 +327,10 @@ function def(){
           {id:'d4',name:'李玉英',status:'attend',note:'',tag:'教定區'},
           {id:'d5',name:'陳羽芯',status:'attend',note:'',tag:'教定區'},
           {id:'d6',name:'陳塏侖',status:'attend',note:'',tag:'教定區'},
-          ...Array.from({length:4},(_,i)=>({id:'d'+(i+7),name:'',status:'empty',note:''})),
+          {id:'d7',name:'陳錦秀',status:'attend',note:'',transport:'self'},
+          {id:'d8',name:'張素環',status:'attend',note:'',transport:'self'},
+          {id:'d9',name:'蔡志涼',status:'attend',note:'',transport:'self'},
+          {id:'d10',name:'',status:'empty',note:''},
         ]},
       ]},
     ]
@@ -377,6 +380,21 @@ function migrate(d){
       let fi=0;
       t4.seats.forEach(s=>{if(s.status==='empty'&&fi<toAdd.length){s.name=toAdd[fi];s.status='attend';s.tag='教定區';fi++;}});
     }
+  }
+  // 遷移：加入陳錦秀、張素環、蔡志涼至茶道第二桌
+  const g2t4=d.groups.find(g=>g.id==='g2')?.tables?.find(t=>t.id==='t4');
+  if(g2t4){
+    const newMembers=[
+      {id:'d7',name:'陳錦秀',status:'attend',note:'',transport:'self'},
+      {id:'d8',name:'張素環',status:'attend',note:'',transport:'self'},
+      {id:'d9',name:'蔡志涼',status:'attend',note:'',transport:'self'},
+    ];
+    newMembers.forEach(nm=>{
+      const existing=g2t4.seats.find(s=>s.id===nm.id);
+      if(existing&&(existing.status==='empty'||!existing.name)){
+        existing.name=nm.name;existing.status=nm.status;existing.transport=nm.transport;
+      }
+    });
   }
   return d;
 }
@@ -718,13 +736,13 @@ function renderTransport(){
     if(s.status==='attend'&&s.name&&!s.transport)s.transport='undecided';
   })));
   // 設定張德光、姜詠崴等為 self（若還未設定）
-  const selfNames=['張德光','姜詠崴','陳志杰','周晴宣','李玉英','陳羽芯','陳塏侖','周義順'];
+  const selfNames=['張德光','姜詠崴','陳志杰','周晴宣','李玉英','陳羽芯','陳塏侖','周義順','陳錦秀','張素環','蔡志涼'];
   D.groups.forEach(g=>g.tables.forEach(t=>t.seats.forEach(s=>{
     if(selfNames.includes(s.name)&&s.status==='attend'&&!s.transport)s.transport='self';
   })));
 
   const attending=D.groups.flatMap(g=>g.tables.flatMap(t=>t.seats
-    .filter(s=>s.status==='attend'&&s.name&&(g.id!=='g2'||s.tag==='教定區'))
+    .filter(s=>s.status==='attend'&&s.name&&(g.id!=='g2'||s.tag==='教定區'||(s.transport&&s.transport!=='undecided')))
     .map(s=>({...s,gname:g.name,gid:g.id,tid:t.id}))));
 
   const busArr=attending.filter(s=>s.transport==='bus');
