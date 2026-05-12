@@ -457,7 +457,8 @@ function renderSbar(){
   const s=stats(allSeats());
   const attendG1=D.groups.flatMap(g=>g.tables.flatMap(t=>t.seats)).filter(s=>s.status==='attend').length;
   const attendLines=D.groups.map(g=>{
-    const base=g.tables.flatMap(t=>t.seats).filter(s=>s.status==='attend').length;
+    // 茶道只計算自己的位（排除 tag:'教定區' 的借座）
+    const base=g.tables.flatMap(t=>t.seats).filter(s=>s.status==='attend'&&!s.tag).length;
     return base>0?`<div style="font-size:10px;color:#2a7a4a;margin-top:2px">${g.name} ${base} 位</div>`:'';
   }).filter(Boolean).join('')
   +(D.groups.filter(g=>g.id!=='g1').flatMap(g=>g.tables.flatMap(t=>t.seats)).filter(s=>s.status==='attend'&&s.tag==='教定區').length>0
