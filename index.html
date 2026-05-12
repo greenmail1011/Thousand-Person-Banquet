@@ -301,14 +301,14 @@ function def(){
           {id:'a10',name:'謝蜂香',status:'attend',note:''},
         ]},
         {id:'t2',label:'第二桌',seats:[
+          {id:'b8',name:'周義順',status:'attend',note:'',transport:'self'},
+          {id:'b6',name:'張德光',status:'attend',note:'',transport:'self'},
           {id:'b1',name:'范植勇',status:'attend',note:''},
           {id:'b2',name:'劉治中',status:'attend',note:''},
           {id:'b3',name:'歐燕慧',status:'attend',note:''},
           {id:'b4',name:'曾安誠',status:'attend',note:''},
           {id:'b5',name:'姜詠崴',status:'attend',note:'',transport:'self'},
-          {id:'b6',name:'張德光',status:'attend',note:'',transport:'self'},
           {id:'b7',name:'李冠德',status:'attend',note:''},
-          {id:'b8',name:'周義順',status:'attend',note:'',transport:'self'},
           {id:'b9',name:'',status:'empty',note:''},
           {id:'b10',name:'',status:'empty',note:''},
           {id:'b11',name:'彭永才',status:'donate',note:'佈施但無法出席'},
@@ -319,7 +319,12 @@ function def(){
         {id:'t6',label:'第三桌',seats:Array.from({length:8},(_,i)=>({id:'sv'+(i+1),name:'',status:'empty',note:''}))},
       ]},
       {id:'g2',name:'茶道',owner:'錦秀壇主',tables:[
-        {id:'t3',label:'第一桌',seats:Array.from({length:10},(_,i)=>({id:'c'+(i+1),name:'茶',status:'attend',note:''}))},
+        {id:'t3',label:'第一桌',seats:[
+          {id:'c11',name:'陳錦秀',status:'attend',note:'',transport:'self'},
+          {id:'c12',name:'張素環',status:'attend',note:'',transport:'self'},
+          {id:'c13',name:'蔡志涼',status:'attend',note:'',transport:'self'},
+          ...Array.from({length:7},(_,i)=>({id:'c'+(i+1),name:'茶',status:'attend',note:''})),
+        ]},
         {id:'t4',label:'第二桌',seats:[
           {id:'d1',name:'茶',status:'attend',note:''},
           {id:'d2',name:'陳志杰',status:'attend',note:'',tag:'教定區'},
@@ -327,10 +332,7 @@ function def(){
           {id:'d4',name:'李玉英',status:'attend',note:'',tag:'教定區'},
           {id:'d5',name:'陳羽芯',status:'attend',note:'',tag:'教定區'},
           {id:'d6',name:'陳塏侖',status:'attend',note:'',tag:'教定區'},
-          {id:'d7',name:'陳錦秀',status:'attend',note:'',transport:'self'},
-          {id:'d8',name:'張素環',status:'attend',note:'',transport:'self'},
-          {id:'d9',name:'蔡志涼',status:'attend',note:'',transport:'self'},
-          {id:'d10',name:'',status:'empty',note:''},
+          ...Array.from({length:4},(_,i)=>({id:'d'+(i+7),name:'',status:'empty',note:''})),
         ]},
       ]},
     ]
@@ -381,19 +383,39 @@ function migrate(d){
       t4.seats.forEach(s=>{if(s.status==='empty'&&fi<toAdd.length){s.name=toAdd[fi];s.status='attend';s.tag='教定區';fi++;}});
     }
   }
-  // 遷移：加入陳錦秀、張素環、蔡志涼至茶道第二桌
-  const g2t4=d.groups.find(g=>g.id==='g2')?.tables?.find(t=>t.id==='t4');
-  if(g2t4){
-    const newMembers=[
-      {id:'d7',name:'陳錦秀',status:'attend',note:'',transport:'self'},
-      {id:'d8',name:'張素環',status:'attend',note:'',transport:'self'},
-      {id:'d9',name:'蔡志涼',status:'attend',note:'',transport:'self'},
+  // 遷移：張德光和周義順移至教定區第二桌大位（陣列前兩位）
+  const g1t2=d.groups.find(g=>g.id==='g1')?.tables?.find(t=>t.id==='t2');
+  if(g1t2){
+    const order=['b8','b6','b1','b2','b3','b4','b5','b7','b9','b10','b11','b12'];
+    const seatMap=Object.fromEntries(g1t2.seats.map(s=>[s.id,s]));
+    const reordered=order.map(id=>seatMap[id]).filter(Boolean);
+    const extra=g1t2.seats.filter(s=>!order.includes(s.id));
+    g1t2.seats=[...reordered,...extra];
+  }
+  // 遷移：茶道第一桌重整為10位（錦秀大位 + 素環 + 志涼 + 7茶）
+  const g2t3=d.groups.find(g=>g.id==='g2')?.tables?.find(t=>t.id==='t3');
+  if(g2t3){
+    // 確保三位命名席存在
+    const named=[
+      {id:'c11',name:'陳錦秀',status:'attend',note:'',transport:'self'},
+      {id:'c12',name:'張素環',status:'attend',note:'',transport:'self'},
+      {id:'c13',name:'蔡志涼',status:'attend',note:'',transport:'self'},
     ];
-    newMembers.forEach(nm=>{
-      const existing=g2t4.seats.find(s=>s.id===nm.id);
-      if(existing&&(existing.status==='empty'||!existing.name)){
-        existing.name=nm.name;existing.status=nm.status;existing.transport=nm.transport;
-      }
+    named.forEach(nm=>{
+      const ex=g2t3.seats.find(s=>s.id===nm.id);
+      if(ex){ex.name=nm.name;ex.status=nm.status;ex.transport=nm.transport;}
+      else g2t3.seats.push(nm);
+    });
+    // 裁切至10位（保留 c11/c12/c13 + c1~c7）
+    const keep=['c11','c12','c13','c1','c2','c3','c4','c5','c6','c7'];
+    g2t3.seats=keep.map(id=>g2t3.seats.find(s=>s.id===id)).filter(Boolean);
+  }
+  // 遷移：茶道第二桌 d7/d8/d9 還原空位
+  const g2t4m=d.groups.find(g=>g.id==='g2')?.tables?.find(t=>t.id==='t4');
+  if(g2t4m){
+    ['d7','d8','d9'].forEach(sid=>{
+      const s=g2t4m.seats.find(s=>s.id===sid);
+      if(s&&['陳錦秀','張素環','蔡志涼'].includes(s.name)){s.name='';s.status='empty';delete s.transport;}
     });
   }
   return d;
