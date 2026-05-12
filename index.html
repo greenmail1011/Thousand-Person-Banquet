@@ -382,7 +382,6 @@ function sv(){
   if(syncTimeout)clearTimeout(syncTimeout);
   dbRef.set(D).then(()=>{
     setSyncDot('ok');
-    syncTimeout=setTimeout(()=>setSyncDot(''),3000);
   }).catch(e=>console.error('Firebase write error:',e));
   // 立即本地渲染，不等 Firebase 回應
   renderAll();
@@ -419,15 +418,12 @@ dbRef.on('value', snapshot=>{
     document.getElementById('app-content').style.display='block';
     renderAll();
     setSyncDot('ok');
-    syncTimeout=setTimeout(()=>setSyncDot(''),3000);
   } else {
     // 其他客戶端的即時更新
     if(val){
       D=val;
       renderAll();
       setSyncDot('ok');
-      if(syncTimeout)clearTimeout(syncTimeout);
-      syncTimeout=setTimeout(()=>setSyncDot(''),2000);
     }
   }
 });
