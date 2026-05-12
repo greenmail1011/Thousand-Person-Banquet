@@ -502,7 +502,10 @@ function renderTgrid(){
     const tables=g.tables.map(t=>({...t,gname:g.name,owner:g.owner,gid:g.id}));
     const visibleTables=tables.filter(t=>t.seats.some(s=>s.status!=='donate'));
     if(!visibleTables.length)return'';
-    const gStats=stats(g.tables.flatMap(t=>t.seats));
+    const gSeats=g.tables.flatMap(t=>t.seats);
+    const gStats=stats(gSeats);
+    const gOwnAttend=gSeats.filter(s=>s.status==='attend'&&!s.tag).length;
+    const gBorrowed=gSeats.filter(s=>s.status==='attend'&&s.tag==='教定區').length;
     const cards=visibleTables.map(t=>{
     const seatSeats=t.seats.filter(s=>s.status!=='donate');
     const s=stats(t.seats);
@@ -547,7 +550,10 @@ function renderTgrid(){
   <div class="grp-section-head">
     <span class="gname">${g.name}</span>
     ${g.owner?`<span class="gowner">${g.owner}</span>`:''}
-    <span class="gbadge"><span style="color:#8b1a1a;font-weight:600">出席 ${gStats.attend}</span> · <span style="color:#1a5c3a;font-weight:600">空位 ${gStats.empty}</span></span>
+    <span class="gbadge">${gBorrowed>0
+      ?`<span style="color:#8b1a1a;font-weight:600">茶道 ${gOwnAttend}</span> · <span style="color:#8b1a1a">教定借座 ${gBorrowed}</span> · <span style="color:#1a5c3a;font-weight:600">空位 ${gStats.empty}</span>`
+      :`<span style="color:#8b1a1a;font-weight:600">出席 ${gOwnAttend}</span> · <span style="color:#1a5c3a;font-weight:600">空位 ${gStats.empty}</span>`
+    }</span>
   </div>
   <div class="grp-section-body">${cards}</div>
 </div>`;
