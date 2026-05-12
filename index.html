@@ -17,10 +17,22 @@
 body{font-family:'Noto Sans TC',system-ui,sans-serif;font-size:13px;color:var(--ink);background:var(--paper);min-height:100vh}
 .app{max-width:1100px;margin:0 auto;padding:16px}
 
+/* loading */
+#loading{position:fixed;inset:0;background:var(--paper);z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px}
+#loading .spin{width:36px;height:36px;border:4px solid var(--border);border-top-color:var(--red);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#loading p{font-size:13px;color:#888;letter-spacing:2px}
+#app-content{display:none}
+
 /* header */
 .header{text-align:center;padding:18px 0 14px;border-bottom:2px solid var(--gold);margin-bottom:18px}
 .header h1{font-size:22px;font-weight:700;color:var(--red);letter-spacing:4px}
 .header p{font-size:12px;color:#999;margin-top:4px;letter-spacing:2px}
+
+/* sync indicator */
+#sync-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#bbb;margin-left:8px;vertical-align:middle;transition:background .3s}
+#sync-dot.ok{background:#2a7a4a}
+#sync-dot.saving{background:var(--gold)}
 
 /* tabs */
 .tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:18px}
@@ -147,9 +159,17 @@ body{font-family:'Noto Sans TC',system-ui,sans-serif;font-size:13px;color:var(--
 </style>
 </head>
 <body>
+
+<!-- 載入中 -->
+<div id="loading">
+  <div class="spin"></div>
+  <p>連線資料庫中…</p>
+</div>
+
+<div id="app-content">
 <div class="app">
   <div class="header">
-    <h1>千人宴｜教定區調查</h1>
+    <h1>千人宴｜教定區調查<span id="sync-dot" title="同步狀態"></span></h1>
     <p>席位管理系統</p>
   </div>
 
@@ -190,6 +210,7 @@ body{font-family:'Noto Sans TC',system-ui,sans-serif;font-size:13px;color:var(--
     </div>
   </div>
 </div>
+</div>
 
 <!-- 座位編輯 modal -->
 <div class="overlay" id="modal">
@@ -225,83 +246,54 @@ body{font-family:'Noto Sans TC',system-ui,sans-serif;font-size:13px;color:var(--
   </div>
 </div>
 
-<script>
-const SK='qianren_rt_v7';
-let D=load(), selGroup=null, selSeat=null, lastTid=null;
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
-function load(){
-  try{
-    const r=localStorage.getItem(SK);
-    if(r){
-      const d=JSON.parse(r);
-      // 遷移：移除教定區壇主名稱
-      const g1=d.groups.find(g=>g.id==='g1');
-      if(g1&&g1.owner==='謝壇主')g1.owner='';
-      // 遷移：教定區道親→謝壇主，茶道道親→茶菩薩
-      const g2r=d.groups.find(g=>g.id==='g2');
-      if(g1)g1.tables.forEach(t=>t.seats.forEach(s=>{if(s.name==='道親')s.name='謝壇主';}));
-      if(g2r)g2r.tables.forEach(t=>t.seats.forEach(s=>{if(s.name==='道親'||s.name==='茶菩薩')s.name='茶';}));
-      // 遷移：第一桌謝壇主→蜂香
-      if(g1){const t1=g1.tables.find(t=>t.id==='t1');if(t1)t1.seats.forEach(s=>{if(s.name==='謝壇主')s.name='蜂香';});}
-      try{localStorage.setItem(SK,JSON.stringify(d));}catch(e){};
-      // 遷移：若無素環壇主分組則自動補入
-      if(!d.groups.find(g=>g.id==='g3')){
-        d.groups.splice(1,0,{id:'g3',name:'素環',owner:'素環壇主',tables:[
-          {id:'t5',label:'佈施名單',seats:Array.from({length:8},(_,i)=>({id:'su'+(i+1),name:'道親',status:'donate',note:'無法出席，以佈施方式呈現'}))},
-          {id:'t6',label:'第三桌',seats:Array.from({length:10},(_,i)=>({id:'sv'+(i+1),name:'',status:'empty',note:''}))}
-        ]});
-        try{localStorage.setItem(SK,JSON.stringify(d));}catch(e){}
-      }
-      // 遷移：刪除素環的佈施名單桌
-      if(g3)g3.tables=g3.tables.filter(t=>t.id!=='t5');
-      // 遷移：若素環已存在但缺第三桌則補入
-      const g3=d.groups.find(g=>g.id==='g3');
-      if(g3&&!g3.tables.find(t=>t.id==='t6')){
-        g3.tables.push({id:'t6',label:'第三桌',seats:Array.from({length:8},(_,i)=>({id:'sv'+(i+1),name:'',status:'empty',note:''}))});
-        try{localStorage.setItem(SK,JSON.stringify(d));}catch(e){}
-      }
-      // 遷移：第三桌若超過8位則裁切至8位
-      const t6=g3&&g3.tables.find(t=>t.id==='t6');
-      if(t6&&t6.seats.length>8){t6.seats=t6.seats.slice(0,8);try{localStorage.setItem(SK,JSON.stringify(d));}catch(e){}}
-      // 遷移：5位一家人全移至茶道，教定區3位還原空位
-      const g1m=d.groups.find(g=>g.id==='g1');
-      const g2m=d.groups.find(g=>g.id==='g2');
-      const family=['陳志杰','周晴宣','李玉英','陳羽芯','陳塏侖'];
-      // 教定區：若有家人名字則還原為空位
-      if(g1m)g1m.tables.forEach(t=>t.seats.forEach(s=>{if(family.includes(s.name)){s.name='';s.status='empty';}}));
-      // 茶道：若尚未加入則加入（有 tag:'教定區' 為標記）
-      if(g2m){
-        const t4=g2m.tables.find(t=>t.id==='t4');
-        if(t4){
-          const existing=t4.seats.filter(s=>s.tag==='教定區').map(s=>s.name);
-          const toAdd=family.filter(n=>!existing.includes(n));
-          let fi=0;
-          t4.seats.forEach(s=>{if(s.status==='empty'&&fi<toAdd.length){s.name=toAdd[fi];s.status='attend';s.tag='教定區';fi++;}});
-        }
-      }
-      try{localStorage.setItem(SK,JSON.stringify(d));}catch(e){}
-      return d;
-    }
-  }catch(e){}
-  return def();
+<script>
+// ── Firebase 初始化 ──────────────────────────────────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyBfh90apkGPQOaBVBMU5VQaWepX9h3S308",
+  authDomain: "thousand-person-banquet.firebaseapp.com",
+  databaseURL: "https://thousand-person-banquet-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "thousand-person-banquet",
+  storageBucket: "thousand-person-banquet.firebasestorage.app",
+  messagingSenderId: "576462226098",
+  appId: "1:576462226098:web:1b6839d92808a978ac3fab"
+};
+firebase.initializeApp(firebaseConfig);
+const dbRef = firebase.database().ref('banquet');
+
+// ── 狀態 ────────────────────────────────────────────────────
+let D = null, selGroup=null, selSeat=null, lastTid=null;
+let fbInitialized = false;
+let syncTimeout = null;
+
+function setSyncDot(state){
+  const el=document.getElementById('sync-dot');
+  if(!el)return;
+  el.className='';
+  if(state==='ok'){el.classList.add('ok');}
+  else if(state==='saving'){el.classList.add('saving');}
 }
 
+// ── 預設資料 ────────────────────────────────────────────────
 function def(){
   return {
     cfg:{name:'千人宴｜教定區',date:'',note:'呼籲各壇主廣邀道親前賢補位'},
     groups:[
       {id:'g1',name:'教定區',owner:'',tables:[
         {id:'t1',label:'第一桌',seats:[
-          {id:'a1',name:'蜂香',status:'attend',note:''},
-          {id:'a2',name:'蜂香',status:'attend',note:''},
-          {id:'a3',name:'蜂香',status:'attend',note:''},
-          {id:'a4',name:'蜂香',status:'attend',note:''},
-          {id:'a5',name:'蜂香',status:'attend',note:''},
-          {id:'a6',name:'蜂香',status:'attend',note:''},
-          {id:'a7',name:'蜂香',status:'attend',note:''},
-          {id:'a8',name:'蜂香',status:'attend',note:''},
-          {id:'a9',name:'蜂香',status:'attend',note:''},
-          {id:'a10',name:'蜂香',status:'attend',note:''},
+          {id:'a1',name:'謝蜂香',status:'attend',note:''},
+          {id:'a2',name:'謝蜂香',status:'attend',note:''},
+          {id:'a3',name:'謝蜂香',status:'attend',note:''},
+          {id:'a4',name:'謝蜂香',status:'attend',note:''},
+          {id:'a5',name:'謝蜂香',status:'attend',note:''},
+          {id:'a6',name:'謝蜂香',status:'attend',note:''},
+          {id:'a7',name:'謝蜂香',status:'attend',note:''},
+          {id:'a8',name:'謝蜂香',status:'attend',note:''},
+          {id:'a9',name:'謝蜂香',status:'attend',note:''},
+          {id:'a10',name:'謝蜂香',status:'attend',note:''},
         ]},
         {id:'t2',label:'第二桌',seats:[
           {id:'b1',name:'范植勇',status:'attend',note:''},
@@ -311,7 +303,7 @@ function def(){
           {id:'b5',name:'姜詠崴',status:'attend',note:'',transport:'self'},
           {id:'b6',name:'張德光',status:'attend',note:'',transport:'self'},
           {id:'b7',name:'李冠德',status:'attend',note:''},
-          {id:'b8',name:'',status:'empty',note:''},
+          {id:'b8',name:'周義順',status:'attend',note:'',transport:'self'},
           {id:'b9',name:'',status:'empty',note:''},
           {id:'b10',name:'',status:'empty',note:''},
           {id:'b11',name:'彭永才',status:'donate',note:'佈施但無法出席'},
@@ -337,7 +329,110 @@ function def(){
   };
 }
 
-function sv(){try{localStorage.setItem(SK,JSON.stringify(D));}catch(e){}render();}
+// ── 遷移舊資料 ───────────────────────────────────────────────
+function migrate(d){
+  if(!d||!d.groups)return def();
+  // 遷移：移除教定區壇主名稱
+  const g1=d.groups.find(g=>g.id==='g1');
+  if(g1&&g1.owner==='謝壇主')g1.owner='';
+  // 遷移：教定區道親→謝壇主，茶道道親→茶菩薩
+  const g2r=d.groups.find(g=>g.id==='g2');
+  if(g1)g1.tables.forEach(t=>t.seats.forEach(s=>{if(s.name==='道親')s.name='謝壇主';}));
+  if(g2r)g2r.tables.forEach(t=>t.seats.forEach(s=>{if(s.name==='道親'||s.name==='茶菩薩')s.name='茶';}));
+  // 遷移：第一桌蜂香/謝壇主→謝蜂香
+  if(g1){const t1=g1.tables.find(t=>t.id==='t1');if(t1)t1.seats.forEach(s=>{if(s.name==='蜂香'||s.name==='謝壇主'||s.name==='道親')s.name='謝蜂香';});}
+  // 遷移：加入周義順
+  if(g1){const t2=g1.tables.find(t=>t.id==='t2');if(t2){const b8=t2.seats.find(s=>s.id==='b8');if(b8&&(b8.status==='empty'||!b8.name)){b8.name='周義順';b8.status='attend';b8.transport='self';}}}
+  // 遷移：若無素環壇主分組則自動補入
+  if(!d.groups.find(g=>g.id==='g3')){
+    d.groups.splice(1,0,{id:'g3',name:'素環',owner:'素環壇主',tables:[
+      {id:'t6',label:'第三桌',seats:Array.from({length:8},(_,i)=>({id:'sv'+(i+1),name:'',status:'empty',note:''}))}
+    ]});
+  }
+  // 遷移：刪除素環的佈施名單桌
+  const g3=d.groups.find(g=>g.id==='g3');
+  if(g3)g3.tables=g3.tables.filter(t=>t.id!=='t5');
+  // 遷移：若素環已存在但缺第三桌則補入
+  if(g3&&!g3.tables.find(t=>t.id==='t6')){
+    g3.tables.push({id:'t6',label:'第三桌',seats:Array.from({length:8},(_,i)=>({id:'sv'+(i+1),name:'',status:'empty',note:''}))});
+  }
+  // 遷移：第三桌若超過8位則裁切至8位
+  const t6=g3&&g3.tables.find(t=>t.id==='t6');
+  if(t6&&t6.seats.length>8){t6.seats=t6.seats.slice(0,8);}
+  // 遷移：5位一家人全移至茶道，教定區3位還原空位
+  const g1m=d.groups.find(g=>g.id==='g1');
+  const g2m=d.groups.find(g=>g.id==='g2');
+  const family=['陳志杰','周晴宣','李玉英','陳羽芯','陳塏侖'];
+  if(g1m)g1m.tables.forEach(t=>t.seats.forEach(s=>{if(family.includes(s.name)){s.name='';s.status='empty';}}));
+  if(g2m){
+    const t4=g2m.tables.find(t=>t.id==='t4');
+    if(t4){
+      const existing=t4.seats.filter(s=>s.tag==='教定區').map(s=>s.name);
+      const toAdd=family.filter(n=>!existing.includes(n));
+      let fi=0;
+      t4.seats.forEach(s=>{if(s.status==='empty'&&fi<toAdd.length){s.name=toAdd[fi];s.status='attend';s.tag='教定區';fi++;}});
+    }
+  }
+  return d;
+}
+
+// ── Firebase 讀寫 ────────────────────────────────────────────
+function sv(){
+  setSyncDot('saving');
+  if(syncTimeout)clearTimeout(syncTimeout);
+  dbRef.set(D).then(()=>{
+    setSyncDot('ok');
+    syncTimeout=setTimeout(()=>setSyncDot(''),3000);
+  }).catch(e=>console.error('Firebase write error:',e));
+  // 立即本地渲染，不等 Firebase 回應
+  renderAll();
+}
+
+// 連線逾時保護：8秒內沒回應則顯示錯誤提示
+const connTimeout=setTimeout(()=>{
+  if(!fbInitialized){
+    document.querySelector('#loading p').textContent='⚠️ 無法連線資料庫，請確認 Firebase 規則已設為開放讀寫';
+    document.querySelector('#loading p').style.color='#c44';
+  }
+},8000);
+
+// Firebase 即時監聽（所有客戶端同步）
+dbRef.on('value', snapshot=>{
+  clearTimeout(connTimeout);
+  const val=snapshot.val();
+  if(!fbInitialized){
+    // 首次載入
+    fbInitialized=true;
+    if(val){
+      D=migrate(val);
+      // 若遷移後資料有變化則寫回
+      if(JSON.stringify(D)!==JSON.stringify(val))dbRef.set(D);
+    } else {
+      // Firebase 無資料，嘗試從 localStorage 遷移
+      try{
+        const ls=localStorage.getItem('qianren_rt_v7');
+        D=ls?migrate(JSON.parse(ls)):def();
+      }catch(e){D=def();}
+      dbRef.set(D);
+    }
+    document.getElementById('loading').style.display='none';
+    document.getElementById('app-content').style.display='block';
+    renderAll();
+    setSyncDot('ok');
+    syncTimeout=setTimeout(()=>setSyncDot(''),3000);
+  } else {
+    // 其他客戶端的即時更新
+    if(val){
+      D=val;
+      renderAll();
+      setSyncDot('ok');
+      if(syncTimeout)clearTimeout(syncTimeout);
+      syncTimeout=setTimeout(()=>setSyncDot(''),2000);
+    }
+  }
+});
+
+// ── 輔助函式 ─────────────────────────────────────────────────
 function uid(){return 'x'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);}
 function allSeats(){return D.groups.flatMap(g=>g.tables.flatMap(t=>t.seats));}
 function stats(seats){return{
@@ -353,17 +448,25 @@ function sw(t){
   if(t==='amt')renderDonatePanel();
 }
 
-function render(){renderSbar();renderGsel();renderTgrid();renderCfg();}
+function renderAll(){
+  if(!D)return;
+  render();
+  if(document.getElementById('s-tr').classList.contains('on'))renderTransport();
+  if(document.getElementById('s-amt').classList.contains('on'))renderDonatePanel();
+}
+
+function render(){if(!D)return;renderSbar();renderGsel();renderTgrid();renderCfg();}
 
 function renderSbar(){
   const s=stats(allSeats());
-  const g1=D.groups.find(g=>g.id==='g1');
-  const attendG1=(g1?g1.tables.flatMap(t=>t.seats).filter(s=>s.status==='attend').length:0)
-    +D.groups.filter(g=>g.id!=='g1').flatMap(g=>g.tables.flatMap(t=>t.seats)).filter(s=>s.status==='attend'&&s.tag==='教定區').length;
-  const emptyBreakdown=D.groups.map(g=>{
-    const e=g.tables.flatMap(t=>t.seats).filter(s=>s.status==='empty').length;
-    return e>0?`${g.name} ${e} 位`:'';
-  }).filter(Boolean).join('、');
+  const attendG1=D.groups.flatMap(g=>g.tables.flatMap(t=>t.seats)).filter(s=>s.status==='attend').length;
+  const attendLines=D.groups.map(g=>{
+    const base=g.tables.flatMap(t=>t.seats).filter(s=>s.status==='attend').length;
+    return base>0?`<div style="font-size:10px;color:#2a7a4a;margin-top:2px">${g.name} ${base} 位</div>`:'';
+  }).filter(Boolean).join('')
+  +(D.groups.filter(g=>g.id!=='g1').flatMap(g=>g.tables.flatMap(t=>t.seats)).filter(s=>s.status==='attend'&&s.tag==='教定區').length>0
+    ?`<div style="font-size:10px;color:#2a7a4a;margin-top:2px">教定借茶道座 ${D.groups.filter(g=>g.id!=='g1').flatMap(g=>g.tables.flatMap(t=>t.seats)).filter(s=>s.status==='attend'&&s.tag==='教定區').length} 位</div>`
+    :'');
   const emptyLines=D.groups.map(g=>{
     const e=g.tables.flatMap(t=>t.seats).filter(s=>s.status==='empty').length;
     return e>0?`<div style="font-size:10px;color:#b04040;margin-top:2px">${g.name} ${e} 位</div>`:'';
@@ -373,8 +476,8 @@ function renderSbar(){
     return seats.length>0?`<div style="font-size:10px;color:#666;margin-top:2px">${g.name} ${seats.length} 位</div>`:'';
   }).filter(Boolean).join('');
   document.getElementById('sbar').innerHTML=`
-    <div class="sc grn"><div class="n">${attendG1}</div><div class="l">佈施 +1500（出席）</div></div>
-    <div class="sc blu"><div class="n">${s.donate}</div><div class="l">佈施 +1500（不出席）</div></div>
+    <div class="sc grn"><div class="n">${attendG1}</div><div class="l">佈施（出席）</div>${attendLines}</div>
+    <div class="sc blu"><div class="n">${s.donate}</div><div class="l">佈施（不出席）</div></div>
     <div class="sc red"><div class="n">${s.empty}</div><div class="l">空位待補</div>${emptyLines}</div>
     <div class="sc"><div class="n">${s.attend+s.empty}</div><div class="l">實際席位數</div>${seatLines}</div>`;
 }
@@ -393,9 +496,6 @@ function renderTgrid(){
     const visibleTables=tables.filter(t=>t.seats.some(s=>s.status!=='donate'));
     if(!visibleTables.length)return'';
     const gStats=stats(g.tables.flatMap(t=>t.seats));
-    const ownerStr=g.owner?`· ${g.owner}`:'';
-    const donateCount=g.tables.flatMap(t=>t.seats).filter(s=>s.status==='donate').length;
-    const fmt=n=>n.toLocaleString('zh-TW');
     const cards=visibleTables.map(t=>{
     const seatSeats=t.seats.filter(s=>s.status!=='donate');
     const s=stats(t.seats);
@@ -407,10 +507,12 @@ function renderTgrid(){
       const y=(cy+tr*Math.sin(a)).toFixed(1);
       const yt=(parseFloat(y)+4).toFixed(1);
       const isJD=t.gid==='g1'||(seat.tag==='教定區');
-      const col=seat.status==='empty'?'#f9eeee':isJD?'#8b5200':'#1a5c3a';
-      const stk=seat.status==='empty'?'#8b1a1a':isJD?'#c97a00':col;
+      const isTea=t.gid==='g2'&&!seat.tag;
+      const col=seat.status==='empty'?'#f9eeee':isJD?'#8b1a1a':isTea?'#5b2d8e':'#1a5c3a';
+      const stk=seat.status==='empty'?'#8b1a1a':isJD?'#6d1515':isTea?'#3d1a6e':col;
       const dash=seat.status==='empty'?'stroke-dasharray="3 2"':'';
-      const nm=seat.status==='empty'?'空':(seat.name?seat.name.slice(-2):'');
+      const rawNm=seat.name||'';
+      const nm=seat.status==='empty'?'空':(rawNm==='謝蜂香'?'謝':(rawNm.length>=3?rawNm.slice(-2):rawNm)||'');
       const nmFs=nm.length===1?16:13;
       const tc=seat.status==='attend'?'#fff':'#8b1a1a';
       return `<circle cx="${x}" cy="${y}" r="${sr}" fill="${col}" stroke="${stk}" stroke-width="2" ${dash} style="cursor:pointer" onclick="openSeat('${t.id}','${seat.id}')"/>
@@ -438,7 +540,7 @@ function renderTgrid(){
   <div class="grp-section-head">
     <span class="gname">${g.name}</span>
     ${g.owner?`<span class="gowner">${g.owner}</span>`:''}
-    <span class="gbadge"><span style="color:#1a5c3a;font-weight:600">出席 ${gStats.attend}</span> · <span style="color:#8b1a1a;font-weight:600">空位 ${gStats.empty}</span></span>
+    <span class="gbadge"><span style="color:#8b1a1a;font-weight:600">出席 ${gStats.attend}</span> · <span style="color:#1a5c3a;font-weight:600">空位 ${gStats.empty}</span></span>
   </div>
   <div class="grp-section-body">${cards}</div>
 </div>`;
@@ -446,6 +548,7 @@ function renderTgrid(){
 }
 
 function renderDonatePanel(){
+  if(!D)return;
   const UNIT=1500;
   const groups=selGroup?D.groups.filter(g=>g.id===selGroup):D.groups;
   const fmt=n=>n.toLocaleString('zh-TW');
@@ -458,21 +561,18 @@ function renderDonatePanel(){
   }).filter(g=>g.items.length>0);
   const absentTotal=absentData.reduce((a,g)=>a+g.items.length,0);
 
-  // 會出席佈施（排除茶道，但保留借座茶道的教定區成員）
+  // 會出席佈施（排除茶道及借座茶道的5位）
+  const excludeNames=['陳志杰','周晴宣','李玉英','陳羽芯','陳塏侖'];
   const attendData=groups.filter(g=>g.id!=='g2').map(g=>{
-    // 本組出席 + 借座其他桌但屬於本組的人
-    const ownItems=g.tables.flatMap(t=>t.seats.filter(s=>s.status==='attend'&&s.name).map(s=>({...s,tid:t.id,tlabel:t.label})));
-    const guestItems=g.id==='g1'
-      ? groups.filter(x=>x.id!=='g1').flatMap(x=>x.tables.flatMap(t=>t.seats.filter(s=>s.status==='attend'&&s.name&&s.tag==='教定區').map(s=>({...s,tid:t.id,tlabel:t.label}))))
-      : [];
-    return {gid:g.id,gname:g.name,owner:g.owner,items:[...ownItems,...guestItems]};
+    const ownItems=g.tables.flatMap(t=>t.seats.filter(s=>s.status==='attend'&&s.name&&!excludeNames.includes(s.name)).map(s=>({...s,tid:t.id,tlabel:t.label})));
+    return {gid:g.id,gname:g.name,owner:g.owner,items:ownItems};
   }).filter(g=>g.items.length>0);
   const attendTotal=attendData.reduce((a,g)=>a+g.items.length,0);
 
   if(absentTotal===0&&attendTotal===0){el.innerHTML='';return;}
 
   const nameAlias={'教定區':'謝壇主','茶道':'茶菩薩'};
-  const renderGroup=(g,status)=>`
+  const renderGroup=(g)=>`
     <div class="dgrp">
       <div class="dgrp-title">
         <span>${nameAlias[g.gname]||g.gname}</span>
@@ -498,9 +598,9 @@ function renderDonatePanel(){
               <div style="font-size:14px;font-weight:700;color:var(--green)">${attendTotal} 位</div>
               <div style="font-size:11px;color:#666;margin-top:1px">NT$ ${fmt(attendTotal*UNIT)}</div>
             </div>
-            <span id="dp-attend-arrow" style="font-size:11px;color:#aaa">▶ 展開</span>
+            <span id="dp-attend-arrow" style="font-size:11px;color:#aaa">▼ 收合</span>
           </div>
-          <div id="dp-attend" style="display:none;border-top:1px solid #eedfc0"><div class="dpanel-body">${attendData.map(g=>renderGroup(g,'attend')).join('')}</div></div>
+          <div id="dp-attend" style="display:block;border-top:1px solid #eedfc0"><div class="dpanel-body">${attendData.map(g=>renderGroup(g)).join('')}</div></div>
         </div>`:''}
         <div style="display:flex;align-items:center;font-size:16px;color:#bbb">＋</div>
         ${absentTotal>0?`<div style="flex:1;min-width:120px;background:#fff;border:1px solid #d4b896;border-radius:8px;overflow:hidden">
@@ -510,12 +610,12 @@ function renderDonatePanel(){
               <div style="font-size:14px;font-weight:700;color:var(--blue)">${absentTotal} 位</div>
               <div style="font-size:11px;color:#666;margin-top:1px">NT$ ${fmt(absentTotal*UNIT)}</div>
             </div>
-            <span id="dp-absent-arrow" style="font-size:11px;color:#aaa">▶ 展開</span>
+            <span id="dp-absent-arrow" style="font-size:11px;color:#aaa">▼ 收合</span>
           </div>
-          <div id="dp-absent" style="display:none;border-top:1px solid #eedfc0">
+          <div id="dp-absent" style="display:block;border-top:1px solid #eedfc0">
             <div class="dpanel-body">
               <div style="font-size:11px;color:#8b4a1a;font-weight:500;padding:6px 0 2px">備註：素環壇主募得有1位捐款26,000不納入教定區</div>
-              ${absentData.map(g=>renderGroup(g,'donate')).join('')}
+              ${absentData.map(g=>renderGroup(g)).join('')}
             </div>
           </div>
         </div>`:''}
@@ -599,21 +699,24 @@ function deleteTable(gid,tid){
 }
 
 function renderTransport(){
-  // 設定未有 transport 欄位的人預設為 bus
+  if(!D)return;
+  // 設定未有 transport 欄位的人預設為 undecided
   D.groups.forEach(g=>g.tables.forEach(t=>t.seats.forEach(s=>{
-    if(s.status==='attend'&&s.name&&!s.transport)s.transport='bus';
+    if(s.status==='attend'&&s.name&&!s.transport)s.transport='undecided';
   })));
-  // 設定張德光、姜詠崴為 self（若還未設定）
+  // 設定張德光、姜詠崴等為 self（若還未設定）
+  const selfNames=['張德光','姜詠崴','陳志杰','周晴宣','李玉英','陳羽芯','陳塏侖','周義順'];
   D.groups.forEach(g=>g.tables.forEach(t=>t.seats.forEach(s=>{
-    if((s.name==='張德光'||s.name==='姜詠崴')&&s.status==='attend')s.transport='self';
+    if(selfNames.includes(s.name)&&s.status==='attend'&&!s.transport)s.transport='self';
   })));
 
   const attending=D.groups.flatMap(g=>g.tables.flatMap(t=>t.seats
     .filter(s=>s.status==='attend'&&s.name&&(g.id!=='g2'||s.tag==='教定區'))
     .map(s=>({...s,gname:g.name,gid:g.id,tid:t.id}))));
 
+  const busArr=attending.filter(s=>s.transport==='bus');
   const selfArr=attending.filter(s=>s.transport==='self');
-  const busArr=attending.filter(s=>s.transport!=='self');
+  const undecidedArr=attending.filter(s=>s.transport==='undecided'||!s.transport);
 
   const dispGid=s=>s.tag==='教定區'?'g1':s.gid;
   const dispGname=s=>s.tag==='教定區'?'教定區':s.gname;
@@ -635,12 +738,19 @@ function renderTransport(){
     </div>
     <div class="tr-section">
       <div class="tr-head">
-        <h3>🚗 自行安排</h3>
+        <h3>🚗 自行前往</h3>
         <span class="badge" style="background:var(--red-light);color:var(--red)">${selfArr.length} 位</span>
       </div>
       <div class="tr-grid">${selfArr.map(pillHtml).join('')||'<span style="color:#aaa;font-size:12px">尚無人員</span>'}</div>
     </div>
-    <div style="font-size:11px;color:#aaa;text-align:center;margin-top:8px">點擊姓名可切換交通方式</div>
+    <div class="tr-section">
+      <div class="tr-head">
+        <h3>❓ 尚未決定</h3>
+        <span class="badge" style="background:#f5f0ff;color:#7c3aed">${undecidedArr.length} 位</span>
+      </div>
+      <div class="tr-grid">${undecidedArr.map(pillHtml).join('')||'<span style="color:#aaa;font-size:12px">尚無人員</span>'}</div>
+    </div>
+    <div style="font-size:11px;color:#aaa;text-align:center;margin-top:8px">點擊姓名可切換：遊覽車 → 自行前往 → 尚未決定</div>
   `;
 }
 
@@ -648,7 +758,8 @@ function toggleTransport(tid,sid){
   const tbl=D.groups.flatMap(g=>g.tables).find(t=>t.id===tid);
   const seat=tbl&&tbl.seats.find(s=>s.id===sid);
   if(!seat)return;
-  seat.transport=seat.transport==='self'?'bus':'self';
+  const cycle={bus:'self',self:'undecided',undecided:'bus'};
+  seat.transport=cycle[seat.transport]||'bus';
   sv();renderTransport();
 }
 
@@ -684,6 +795,7 @@ function deleteGroup(gid){
 }
 
 function renderCfg(){
+  if(!D)return;
   document.getElementById('cfg-name').value=D.cfg.name||'';
   document.getElementById('cfg-date').value=D.cfg.date||'';
   document.getElementById('cfg-note').value=D.cfg.note||'';
@@ -713,8 +825,6 @@ function togglePanel(id){
 // close modal on overlay click
 document.getElementById('modal').addEventListener('click',function(e){if(e.target===this)closeModal();});
 document.getElementById('modal-grp').addEventListener('click',function(e){if(e.target===this)this.classList.remove('open');});
-
-render();
 </script>
 </body>
 </html>
