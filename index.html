@@ -42,7 +42,11 @@ body{font-family:'Noto Sans TC',system-ui,sans-serif;font-size:13px;color:var(--
 .sec{display:none}.sec.on{display:block}
 
 /* summary */
-.sbar{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px;align-items:start}
+.sbar{display:flex;align-items:flex-start;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+.sbar-main{display:flex;align-items:flex-start;gap:6px;flex:1;min-width:0;flex-wrap:wrap}
+.sbar-main .sc{flex:1;min-width:80px}
+.sbar-op{font-size:22px;font-weight:300;color:#bbb;align-self:flex-start;padding-top:10px;flex-shrink:0}
+.sbar-sep{width:1px;background:var(--border);align-self:stretch;margin:0 4px;flex-shrink:0}
 .sc{background:var(--paper2);border-radius:8px;padding:10px 12px}
 .sc .n{font-size:32px;font-weight:700;line-height:1.1}
 .sc .l{font-size:11px;color:#888;margin-top:2px}
@@ -153,7 +157,8 @@ body{font-family:'Noto Sans TC',system-ui,sans-serif;font-size:13px;color:var(--
 .cfg-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
 
 @media(max-width:480px){
-  .sbar{grid-template-columns:repeat(2,1fr)}
+  .sbar{flex-direction:column}
+  .sbar-sep{display:none}
   .tgrid{grid-template-columns:1fr}
 }
 </style>
@@ -473,10 +478,15 @@ function renderSbar(){
     return seats.length>0?`<div style="font-size:10px;color:#666;margin-top:2px">${g.name} ${seats.length} 位</div>`:'';
   }).filter(Boolean).join('');
   document.getElementById('sbar').innerHTML=`
-    <div class="sc grn"><div class="n">${attendG1}</div><div class="l">佈施（出席）</div>${attendLines}</div>
-    <div class="sc blu"><div class="n">${s.donate}</div><div class="l">佈施（不出席）</div></div>
-    <div class="sc red"><div class="n">${s.empty}</div><div class="l">空位待補</div>${emptyLines}</div>
-    <div class="sc"><div class="n">${s.attend+s.empty}</div><div class="l">實際席位數</div>${seatLines}</div>`;
+    <div class="sbar-main">
+      <div class="sc grn"><div class="n">${attendG1}</div><div class="l">佈施（出席）</div>${attendLines}</div>
+      <div class="sbar-op">＋</div>
+      <div class="sc red"><div class="n">${s.empty}</div><div class="l">空位待補</div>${emptyLines}</div>
+      <div class="sbar-op">＝</div>
+      <div class="sc"><div class="n">${s.attend+s.empty}</div><div class="l">實際席位數</div>${seatLines}</div>
+    </div>
+    <div class="sbar-sep"></div>
+    <div class="sc blu" style="min-width:90px"><div class="n">${s.donate}</div><div class="l">佈施（不出席）</div></div>`;
 }
 
 function renderGsel(){
