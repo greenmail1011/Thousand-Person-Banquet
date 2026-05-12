@@ -309,8 +309,8 @@ function def(){
           {id:'b4',name:'曾安誠',status:'attend',note:''},
           {id:'b5',name:'姜詠崴',status:'attend',note:'',transport:'self'},
           {id:'b7',name:'李冠德',status:'attend',note:''},
-          {id:'b9',name:'',status:'empty',note:''},
-          {id:'b10',name:'',status:'empty',note:''},
+          {id:'b9',name:'林佳慧',status:'attend',note:'',transport:'self'},
+          {id:'b10',name:'戴瑋德',status:'attend',note:'',transport:'self'},
           {id:'b11',name:'彭永才',status:'donate',note:'佈施但無法出席'},
           {id:'b12',name:'曾玉錦',status:'donate',note:'佈施但無法出席'},
         ]},
@@ -382,6 +382,14 @@ function migrate(d){
       let fi=0;
       t4.seats.forEach(s=>{if(s.status==='empty'&&fi<toAdd.length){s.name=toAdd[fi];s.status='attend';s.tag='教定區';fi++;}});
     }
+  }
+  // 遷移：加入林佳慧、戴瑋德至教定區第二桌
+  const g1t2new=d.groups.find(g=>g.id==='g1')?.tables?.find(t=>t.id==='t2');
+  if(g1t2new){
+    [{id:'b9',name:'林佳慧'},{id:'b10',name:'戴瑋德'}].forEach(nm=>{
+      const s=g1t2new.seats.find(s=>s.id===nm.id);
+      if(s&&(s.status==='empty'||!s.name)){s.name=nm.name;s.status='attend';s.transport='self';}
+    });
   }
   // 遷移：張德光和周義順移至教定區第二桌大位（陣列前兩位）
   const g1t2=d.groups.find(g=>g.id==='g1')?.tables?.find(t=>t.id==='t2');
@@ -758,7 +766,7 @@ function renderTransport(){
     if(s.status==='attend'&&s.name&&!s.transport)s.transport='undecided';
   })));
   // 設定張德光、姜詠崴等為 self（若還未設定）
-  const selfNames=['張德光','姜詠崴','陳志杰','周晴宣','李玉英','陳羽芯','陳塏侖','周義順','陳錦秀','張素環','蔡志涼'];
+  const selfNames=['張德光','姜詠崴','陳志杰','周晴宣','李玉英','陳羽芯','陳塏侖','周義順','陳錦秀','張素環','蔡志涼','林佳慧','戴瑋德'];
   D.groups.forEach(g=>g.tables.forEach(t=>t.seats.forEach(s=>{
     if(selfNames.includes(s.name)&&s.status==='attend'&&!s.transport)s.transport='self';
   })));
