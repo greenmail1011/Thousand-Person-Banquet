@@ -183,6 +183,9 @@ body{font-family:'Noto Sans TC',system-ui,sans-serif;font-size:13px;color:var(--
     <button class="tab" onclick="sw('amt')">金流</button>
     <button class="tab" onclick="sw('tr')">車流</button>
   </div>
+  <div style="text-align:right;margin-bottom:10px">
+    <button class="btn" onclick="exportCSV()" style="font-size:12px">⬇ 匯出 Excel</button>
+  </div>
 
   <!-- 圓桌視圖 -->
   <div class="sec on" id="s-vis">
@@ -297,8 +300,8 @@ function def(){
           {id:'a6',name:'李素英',status:'attend',note:'',transport:'self'},
           {id:'a7',name:'黃文任',status:'attend',note:''},
           {id:'a8',name:'邱丰琳',status:'attend',note:''},
-          {id:'a9',name:'謝蜂香',status:'attend',note:''},
-          {id:'a10',name:'謝蜂香',status:'attend',note:''},
+          {id:'a9',name:'黃秋明',status:'attend',note:''},
+          {id:'a10',name:'娜妮',status:'attend',note:''},
         ]},
         {id:'t2',label:'第二桌',seats:[
           {id:'b8',name:'周義順',status:'attend',note:'',transport:'self'},
@@ -378,7 +381,9 @@ function migrate(d){
     {id:'a6',name:'李素英',transport:'self'},
     {id:'a7',name:'黃文任'},
     {id:'a8',name:'邱丰琳'},
-  ];named.forEach(n=>{const s=t1.seats.find(s=>s.id===n.id);if(s){s.name=n.name;if(n.transport)s.transport=n.transport;}});}}
+    {id:'a9',name:'黃秋明'},
+    {id:'a10',name:'娜妮'},
+  ];named.forEach(n=>{const s=t1.seats.find(s=>s.id===n.id);if(s){s.name=n.name;if(n.transport)s.transport=n.transport;}else t1.seats.push({id:n.id,name:n.name,status:'attend',note:''});});}}
 
   // 素環分組
   if(!d.groups.find(g=>g.id==='g3')){
@@ -614,7 +619,6 @@ function renderTgrid(){
       const a=(2*Math.PI/Math.max(n,1))*i-Math.PI/2;
       const x=(cx+tr*Math.cos(a)).toFixed(1);
       const y=(cy+tr*Math.sin(a)).toFixed(1);
-      const yt=(parseFloat(y)+4).toFixed(1);
       const isJD=t.gid==='g1'||(seat.tag==='教定區');
       const isTea=t.gid==='g2'&&!seat.tag;
       const isReserved=seat.name==='謝蜂香'&&!seat.transport;
@@ -623,11 +627,11 @@ function renderTgrid(){
       const dash=seat.status==='empty'?'stroke-dasharray="3 2"':'';
       const sw=isReserved?'4':'2';
       const rawNm=seat.name||'';
-      const nm=seat.status==='empty'?'空':((rawNm.length>=3?rawNm.slice(-2):rawNm)||'');
-      const nmFs=nm.length<=1?16:nm.length===2?13:nm.length===3?11:9;
+      const nm=seat.status==='empty'?'空':(rawNm||'');
+      const nmFs=nm.length<=1?26:nm.length===2?22:nm.length===3?16:13;
       const tc=isReserved?'#8b1a1a':seat.status==='attend'?'#fff':'#8b1a1a';
       return `<circle cx="${x}" cy="${y}" r="${sr}" fill="${col}" stroke="${stk}" stroke-width="${sw}" ${dash} style="cursor:pointer" onclick="openSeat('${t.id}','${seat.id}')"/>
-<text x="${x}" y="${yt}" text-anchor="middle" font-size="${nmFs}" font-weight="600" fill="${tc}" font-family="sans-serif" style="pointer-events:none;user-select:none">${nm}</text>`;
+<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="central" font-size="${nmFs}" font-weight="600" fill="${tc}" font-family="sans-serif" style="pointer-events:none;user-select:none">${nm}</text>`;
     }).join('');
     const isSel=selSeat&&selSeat.tid===t.id;
     const cLabel=s.empty>0?s.empty+'空位':'滿座';
@@ -924,6 +928,32 @@ function togglePanel(id){
   const open=el.style.display==='none';
   el.style.display=open?'block':'none';
   if(arrow)arrow.textContent=open?'▼ 收合':'▶ 展開';
+}
+
+function exportCSV(){
+  if(!D)return;
+  const statusLabel={attend:'出席',donate:'佈施（不出席）',empty:'空位'};
+  const transportLabel={self:'自行前往',bus:'遊覽車',undecided:'未決定','':`未決定`};
+  const rows=[['分組','姓名','狀態','交通方式']];
+  D.groups.forEach(g=>{
+    g.tables.forEach(t=>{
+      t.seats.forEach(s=>{
+        rows.push([
+          g.name,
+          s.name||'',
+          statusLabel[s.status]||s.status,
+          transportLabel[s.transport||'']||s.transport||''
+        ]);
+      });
+    });
+  });
+  const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\r\n');
+  const bom='﻿';
+  const blob=new Blob([bom+csv],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download='千人宴名單.csv';a.click();
+  URL.revokeObjectURL(url);
 }
 
 // close modal on overlay click
