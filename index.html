@@ -641,39 +641,30 @@ function renderTgrid(){
 function renderDonatePanel(){
   if(!D)return;
   const UNIT=1500;
-  const groups=selGroup?D.groups.filter(g=>g.id===selGroup):D.groups;
   const fmt=n=>n.toLocaleString('zh-TW');
   const el=document.getElementById('dpanel');
+  const allSeatsFlat=D.groups.flatMap(g=>g.tables.flatMap(t=>t.seats.map(s=>({...s,tid:t.id,tlabel:t.label,gid:g.id}))));
 
-  // 不出席佈施
-  const absentData=groups.map(g=>{
-    const items=g.tables.flatMap(t=>t.seats.filter(s=>s.status==='donate').map(s=>({...s,tid:t.id,tlabel:t.label})));
-    return {gid:g.id,gname:g.name,owner:g.owner,items};
-  }).filter(g=>g.items.length>0);
-  const absentTotal=absentData.reduce((a,g)=>a+g.items.length,0);
-
-  // 會出席佈施（排除茶道及借座茶道的5位）
+  // 會出席：教定區自己＋借座其他組（tag:'教定區'），排除借去茶道的5位
   const excludeNames=['陳志杰','周晴宣','李玉英','陳羽芯','陳塏侖'];
-  const attendData=groups.filter(g=>g.id!=='g2').map(g=>{
-    const ownItems=g.tables.flatMap(t=>t.seats.filter(s=>s.status==='attend'&&s.name&&!excludeNames.includes(s.name)).map(s=>({...s,tid:t.id,tlabel:t.label})));
-    return {gid:g.id,gname:g.name,owner:g.owner,items:ownItems};
-  }).filter(g=>g.items.length>0);
-  const attendTotal=attendData.reduce((a,g)=>a+g.items.length,0);
+  const attendItems=allSeatsFlat.filter(s=>
+    s.status==='attend'&&s.name&&!excludeNames.includes(s.name)&&
+    (s.gid==='g1'||s.tag==='教定區')
+  );
 
-  if(absentTotal===0&&attendTotal===0){el.innerHTML='';return;}
+  // 不出席佈施：教定區的 donate 席
+  const absentItems=allSeatsFlat.filter(s=>s.status==='donate'&&s.gid==='g1'&&s.name);
 
-  const nameAlias={'教定區':'謝壇主','茶道':'茶菩薩'};
-  const renderGroup=(g)=>`
-    <div class="dgrp">
-      <div class="dgrp-title">
-        <span class="count">${g.items.length} 位 · NT$ ${fmt(g.items.length*UNIT)}</span>
-      </div>
-      <div class="dgrp-pills">
-        ${g.items.map(it=>`<span class="dpill" title="${it.tlabel}${it.note?' · '+it.note:''}" onclick="openSeat('${it.tid}','${it.id}')">${it.name||'未命名'}</span>`).join('')}
-      </div>
-    </div>`;
+  const attendTotal=attendItems.length;
+  const absentTotal=absentItems.length;
+  const grandTotal=(attendTotal+absentTotal)*UNIT;
 
-  const grandTotal=(absentTotal+attendTotal)*UNIT;
+  if(attendTotal===0&&absentTotal===0){el.innerHTML='';return;}
+
+  const pillsHtml=items=>items.map(it=>
+    `<span class="dpill" title="${it.tlabel}" onclick="openSeat('${it.tid}','${it.id}')">${it.name}</span>`
+  ).join('');
+
   el.innerHTML=`
     <div style="background:var(--gold-light);border:1.5px solid var(--gold);border-radius:12px;padding:14px 18px;">
       <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px">
@@ -681,7 +672,7 @@ function renderDonatePanel(){
         <span style="font-size:20px;font-weight:700;color:var(--red)">NT$ ${fmt(grandTotal)}</span>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        ${attendTotal>0?`<div style="flex:1;min-width:120px;background:#fff;border:1px solid #d4b896;border-radius:8px;overflow:hidden">
+        <div style="flex:1;min-width:120px;background:#fff;border:1px solid #d4b896;border-radius:8px;overflow:hidden">
           <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;cursor:pointer;user-select:none" onclick="togglePanel('dp-attend')">
             <div>
               <div style="font-size:11px;color:#888;margin-bottom:2px">會出席</div>
@@ -690,10 +681,12 @@ function renderDonatePanel(){
             </div>
             <span id="dp-attend-arrow" style="font-size:11px;color:#aaa">▼ 收合</span>
           </div>
-          <div id="dp-attend" style="display:block;border-top:1px solid #eedfc0"><div class="dpanel-body">${attendData.map(g=>renderGroup(g)).join('')}</div></div>
-        </div>`:''}
+          <div id="dp-attend" style="display:block;border-top:1px solid #eedfc0;padding:10px 14px">
+            <div class="dgrp-pills">${pillsHtml(attendItems)}</div>
+          </div>
+        </div>
         <div style="display:flex;align-items:center;font-size:16px;color:#bbb">＋</div>
-        ${absentTotal>0?`<div style="flex:1;min-width:120px;background:#fff;border:1px solid #d4b896;border-radius:8px;overflow:hidden">
+        <div style="flex:1;min-width:120px;background:#fff;border:1px solid #d4b896;border-radius:8px;overflow:hidden">
           <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;cursor:pointer;user-select:none" onclick="togglePanel('dp-absent')">
             <div>
               <div style="font-size:11px;color:#888;margin-bottom:2px">不出席佈施</div>
@@ -702,13 +695,11 @@ function renderDonatePanel(){
             </div>
             <span id="dp-absent-arrow" style="font-size:11px;color:#aaa">▼ 收合</span>
           </div>
-          <div id="dp-absent" style="display:block;border-top:1px solid #eedfc0">
-            <div class="dpanel-body">
-              <div style="font-size:11px;color:#8b4a1a;font-weight:500;padding:6px 0 2px">備註：素環壇主募得有1位捐款26,000不納入教定區</div>
-              ${absentData.map(g=>renderGroup(g)).join('')}
-            </div>
+          <div id="dp-absent" style="display:block;border-top:1px solid #eedfc0;padding:10px 14px">
+            <div style="font-size:11px;color:#8b4a1a;font-weight:500;margin-bottom:6px">備註：素環壇主募得有1位捐款26,000不納入教定區</div>
+            <div class="dgrp-pills">${pillsHtml(absentItems)}</div>
           </div>
-        </div>`:''}
+        </div>
       </div>
     </div>
   `;
