@@ -306,7 +306,7 @@ function def(){
           {id:'b1',name:'范植勇',status:'attend',note:''},
           {id:'b2',name:'劉治中',status:'attend',note:''},
           {id:'b3',name:'歐燕慧',status:'attend',note:''},
-          {id:'b4',name:'曾安誠',status:'attend',note:''},
+          {id:'b4',name:'戴鏡智',status:'attend',note:''},
           {id:'b5',name:'姜詠崴',status:'attend',note:'',transport:'self'},
           {id:'b7',name:'李冠德',status:'attend',note:''},
           {id:'b9',name:'林佳慧',status:'attend',note:'',transport:'self'},
@@ -319,7 +319,11 @@ function def(){
         ]},
       ]},
       {id:'g3',name:'素環',owner:'素環壇主',tables:[
-        {id:'t6',label:'第三桌',seats:Array.from({length:8},(_,i)=>({id:'sv'+(i+1),name:'',status:'empty',note:''}))},
+        {id:'t6',label:'第三桌',seats:[
+          ...Array.from({length:6},(_,i)=>({id:'sv'+(i+1),name:'蔡梅烽',status:'attend',note:'',transport:'self',tag:'教定區'})),
+          {id:'sv7',name:'曾玉美',status:'attend',note:'',transport:'bus',tag:'教定區'},
+          {id:'sv8',name:'曾安誠',status:'attend',note:'',tag:'教定區'},
+        ]},
       ]},
       {id:'g2',name:'茶道',owner:'錦秀壇主',tables:[
         {id:'t3',label:'第一桌',seats:[
@@ -345,40 +349,52 @@ function def(){
 // ── 遷移舊資料 ───────────────────────────────────────────────
 function migrate(d){
   if(!d||!d.groups)return def();
-  // 遷移：移除教定區壇主名稱
+
+  // 共用群組參考（只宣告一次）
   const g1=d.groups.find(g=>g.id==='g1');
+  const g2=d.groups.find(g=>g.id==='g2');
+
+  // 移除教定區壇主名稱
   if(g1&&g1.owner==='謝壇主')g1.owner='';
-  // 遷移：教定區道親→謝壇主，茶道道親→茶菩薩
-  const g2r=d.groups.find(g=>g.id==='g2');
+
+  // 道親名稱遷移
   if(g1)g1.tables.forEach(t=>t.seats.forEach(s=>{if(s.name==='道親')s.name='謝壇主';}));
-  if(g2r)g2r.tables.forEach(t=>t.seats.forEach(s=>{if(s.name==='道親'||s.name==='茶菩薩')s.name='茶';}));
-  // 遷移：第一桌蜂香/謝壇主→謝蜂香
+  if(g2)g2.tables.forEach(t=>t.seats.forEach(s=>{if(s.name==='道親'||s.name==='茶菩薩')s.name='茶';}));
+
+  // 第一桌蜂香→謝蜂香
   if(g1){const t1=g1.tables.find(t=>t.id==='t1');if(t1)t1.seats.forEach(s=>{if(s.name==='蜂香'||s.name==='謝壇主'||s.name==='道親')s.name='謝蜂香';});}
-  // 遷移：加入周義順
-  if(g1){const t2=g1.tables.find(t=>t.id==='t2');if(t2){const b8=t2.seats.find(s=>s.id==='b8');if(b8&&(b8.status==='empty'||!b8.name)){b8.name='周義順';b8.status='attend';b8.transport='self';}}}
-  // 遷移：若無素環壇主分組則自動補入
+
+  // 素環分組
   if(!d.groups.find(g=>g.id==='g3')){
     d.groups.splice(1,0,{id:'g3',name:'素環',owner:'素環壇主',tables:[
-      {id:'t6',label:'第三桌',seats:Array.from({length:8},(_,i)=>({id:'sv'+(i+1),name:'',status:'empty',note:''}))}
+      {id:'t6',label:'第三桌',seats:[]}
     ]});
   }
-  // 遷移：刪除素環的佈施名單桌
   const g3=d.groups.find(g=>g.id==='g3');
   if(g3)g3.tables=g3.tables.filter(t=>t.id!=='t5');
-  // 遷移：若素環已存在但缺第三桌則補入
-  if(g3&&!g3.tables.find(t=>t.id==='t6')){
-    g3.tables.push({id:'t6',label:'第三桌',seats:Array.from({length:8},(_,i)=>({id:'sv'+(i+1),name:'',status:'empty',note:''}))});
-  }
-  // 遷移：第三桌若超過8位則裁切至8位
+  if(g3&&!g3.tables.find(t=>t.id==='t6'))
+    g3.tables.push({id:'t6',label:'第三桌',seats:[]});
   const t6=g3&&g3.tables.find(t=>t.id==='t6');
-  if(t6&&t6.seats.length>8){t6.seats=t6.seats.slice(0,8);}
-  // 遷移：5位一家人全移至茶道，教定區3位還原空位
-  const g1m=d.groups.find(g=>g.id==='g1');
-  const g2m=d.groups.find(g=>g.id==='g2');
+  // 遷移：素環第三桌改為教定借座（蔡梅烽6位＋曾玉美＋曾安誠）
+  if(t6){
+    const wanted=[
+      ...Array.from({length:6},(_,i)=>({id:'sv'+(i+1),name:'蔡梅烽',status:'attend',note:'',transport:'self',tag:'教定區'})),
+      {id:'sv7',name:'曾玉美',status:'attend',note:'',transport:'bus',tag:'教定區'},
+      {id:'sv8',name:'曾安誠',status:'attend',note:'',tag:'教定區'},
+    ];
+    wanted.forEach(w=>{
+      const ex=t6.seats.find(s=>s.id===w.id);
+      if(ex){ex.name=w.name;ex.status=w.status;ex.tag=w.tag;if(w.transport)ex.transport=w.transport;}
+      else t6.seats.push(w);
+    });
+    t6.seats=t6.seats.slice(0,8);
+  }
+
+  // 五位家人移至茶道
   const family=['陳志杰','周晴宣','李玉英','陳羽芯','陳塏侖'];
-  if(g1m)g1m.tables.forEach(t=>t.seats.forEach(s=>{if(family.includes(s.name)){s.name='';s.status='empty';}}));
-  if(g2m){
-    const t4=g2m.tables.find(t=>t.id==='t4');
+  if(g1)g1.tables.forEach(t=>t.seats.forEach(s=>{if(family.includes(s.name)){s.name='';s.status='empty';}}));
+  if(g2){
+    const t4=g2.tables.find(t=>t.id==='t4');
     if(t4){
       const existing=t4.seats.filter(s=>s.tag==='教定區').map(s=>s.name);
       const toAdd=family.filter(n=>!existing.includes(n));
@@ -386,57 +402,59 @@ function migrate(d){
       t4.seats.forEach(s=>{if(s.status==='empty'&&fi<toAdd.length){s.name=toAdd[fi];s.status='attend';s.tag='教定區';fi++;}});
     }
   }
-  // 遷移：加入沈元武、林花粧、沈綵甄至教定區第二桌（不出席佈施）
-  const g1t2donate=d.groups.find(g=>g.id==='g1')?.tables?.find(t=>t.id==='t2');
-  if(g1t2donate){
-    [{id:'b13',name:'沈元武'},{id:'b14',name:'林花粧'},{id:'b15',name:'沈綵甄'}].forEach(nm=>{
-      if(!g1t2donate.seats.find(s=>s.id===nm.id))
-        g1t2donate.seats.push({id:nm.id,name:nm.name,status:'donate',note:'佈施但無法出席'});
-    });
+
+  if(g1){
+    const t2=g1.tables.find(t=>t.id==='t2');
+    if(t2){
+      // 加入周義順
+      const b8=t2.seats.find(s=>s.id==='b8');
+      if(b8&&(b8.status==='empty'||!b8.name)){b8.name='周義順';b8.status='attend';b8.transport='self';}
+      // 加入林佳慧、戴瑋德
+      [{id:'b9',name:'林佳慧'},{id:'b10',name:'戴瑋德'}].forEach(nm=>{
+        const s=t2.seats.find(s=>s.id===nm.id);
+        if(s&&(s.status==='empty'||!s.name)){s.name=nm.name;s.status='attend';s.transport='self';}
+      });
+      // 曾安誠 b4 還原→戴鏡智
+      const b4=t2.seats.find(s=>s.id==='b4');
+      if(b4&&(b4.status==='empty'||b4.name==='曾安誠')){b4.name='戴鏡智';b4.status='attend';}
+      // 加入沈元武、林花粧、沈綵甄（不出席佈施）
+      [{id:'b13',name:'沈元武'},{id:'b14',name:'林花粧'},{id:'b15',name:'沈綵甄'}].forEach(nm=>{
+        if(!t2.seats.find(s=>s.id===nm.id))
+          t2.seats.push({id:nm.id,name:nm.name,status:'donate',note:'佈施但無法出席'});
+      });
+      // 義順、德光移至大位
+      const order=['b8','b6','b1','b2','b3','b4','b5','b7','b9','b10','b11','b12','b13','b14','b15'];
+      const seatMap=Object.fromEntries(t2.seats.map(s=>[s.id,s]));
+      const reordered=order.map(id=>seatMap[id]).filter(Boolean);
+      const extra=t2.seats.filter(s=>!order.includes(s.id));
+      t2.seats=[...reordered,...extra];
+    }
+
+    // 移除教定區第三桌（改借素環那桌）
+    g1.tables=g1.tables.filter(t=>t.id!=='t7');
   }
-  // 遷移：加入林佳慧、戴瑋德至教定區第二桌
-  const g1t2new=d.groups.find(g=>g.id==='g1')?.tables?.find(t=>t.id==='t2');
-  if(g1t2new){
-    [{id:'b9',name:'林佳慧'},{id:'b10',name:'戴瑋德'}].forEach(nm=>{
-      const s=g1t2new.seats.find(s=>s.id===nm.id);
-      if(s&&(s.status==='empty'||!s.name)){s.name=nm.name;s.status='attend';s.transport='self';}
-    });
-  }
-  // 遷移：張德光和周義順移至教定區第二桌大位（陣列前兩位）
-  const g1t2=d.groups.find(g=>g.id==='g1')?.tables?.find(t=>t.id==='t2');
-  if(g1t2){
-    const order=['b8','b6','b1','b2','b3','b4','b5','b7','b9','b10','b11','b12'];
-    const seatMap=Object.fromEntries(g1t2.seats.map(s=>[s.id,s]));
-    const reordered=order.map(id=>seatMap[id]).filter(Boolean);
-    const extra=g1t2.seats.filter(s=>!order.includes(s.id));
-    g1t2.seats=[...reordered,...extra];
-  }
-  // 遷移：茶道第一桌重整為10位（錦秀大位 + 素環 + 志涼 + 7茶）
-  const g2t3=d.groups.find(g=>g.id==='g2')?.tables?.find(t=>t.id==='t3');
+
+  // 茶道第一桌重整為10位（錦秀大位 + 素環 + 志涼 + 7茶）
+  const g2t3=g2&&g2.tables.find(t=>t.id==='t3');
   if(g2t3){
-    // 確保三位命名席存在
-    const named=[
-      {id:'c11',name:'陳錦秀',status:'attend',note:'',transport:'self'},
-      {id:'c12',name:'張素環',status:'attend',note:'',transport:'self'},
-      {id:'c13',name:'蔡志涼',status:'attend',note:'',transport:'self'},
-    ];
-    named.forEach(nm=>{
+    [{id:'c11',name:'陳錦秀',transport:'self'},{id:'c12',name:'張素環',transport:'self'},{id:'c13',name:'蔡志涼',transport:'self'}].forEach(nm=>{
       const ex=g2t3.seats.find(s=>s.id===nm.id);
-      if(ex){ex.name=nm.name;ex.status=nm.status;ex.transport=nm.transport;}
-      else g2t3.seats.push(nm);
+      if(ex){ex.name=nm.name;ex.status='attend';ex.transport=nm.transport;}
+      else g2t3.seats.push({id:nm.id,name:nm.name,status:'attend',note:'',transport:nm.transport});
     });
-    // 裁切至10位（保留 c11/c12/c13 + c1~c7）
     const keep=['c11','c12','c13','c1','c2','c3','c4','c5','c6','c7'];
     g2t3.seats=keep.map(id=>g2t3.seats.find(s=>s.id===id)).filter(Boolean);
   }
-  // 遷移：茶道第二桌 d7/d8/d9 還原空位
-  const g2t4m=d.groups.find(g=>g.id==='g2')?.tables?.find(t=>t.id==='t4');
-  if(g2t4m){
+
+  // 茶道第二桌 d7/d8/d9 還原空位
+  const g2t4=g2&&g2.tables.find(t=>t.id==='t4');
+  if(g2t4){
     ['d7','d8','d9'].forEach(sid=>{
-      const s=g2t4m.seats.find(s=>s.id===sid);
+      const s=g2t4.seats.find(s=>s.id===sid);
       if(s&&['陳錦秀','張素環','蔡志涼'].includes(s.name)){s.name='';s.status='empty';delete s.transport;}
     });
   }
+
   return d;
 }
 
@@ -525,9 +543,10 @@ function renderSbar(){
     const base=g.tables.flatMap(t=>t.seats).filter(s=>s.status==='attend'&&!s.tag).length;
     return base>0?`<div style="font-size:10px;color:#2a7a4a;margin-top:2px">${g.name} ${base} 位</div>`:'';
   }).filter(Boolean).join('')
-  +(D.groups.filter(g=>g.id!=='g1').flatMap(g=>g.tables.flatMap(t=>t.seats)).filter(s=>s.status==='attend'&&s.tag==='教定區').length>0
-    ?`<div style="font-size:10px;color:#2a7a4a;margin-top:2px">教定借茶道座 ${D.groups.filter(g=>g.id!=='g1').flatMap(g=>g.tables.flatMap(t=>t.seats)).filter(s=>s.status==='attend'&&s.tag==='教定區').length} 位</div>`
-    :'');
+  +D.groups.filter(g=>g.id!=='g1').map(g=>{
+    const cnt=g.tables.flatMap(t=>t.seats).filter(s=>s.status==='attend'&&s.tag==='教定區').length;
+    return cnt>0?`<div style="font-size:10px;color:#2a7a4a;margin-top:2px">教定借${g.name}座 ${cnt} 位</div>`:'';
+  }).join('');
   const emptyLines=D.groups.map(g=>{
     const e=g.tables.flatMap(t=>t.seats).filter(s=>s.status==='empty').length;
     return e>0?`<div style="font-size:10px;color:#b04040;margin-top:2px">${g.name} ${e} 位</div>`:'';
@@ -610,7 +629,7 @@ function renderTgrid(){
     <span class="gname">${g.name}</span>
     ${g.owner?`<span class="gowner">${g.owner}</span>`:''}
     <span class="gbadge">${gBorrowed>0
-      ?`<span style="color:#8b1a1a;font-weight:600">茶道 ${gOwnAttend}</span> · <span style="color:#8b1a1a">教定借座 ${gBorrowed}</span> · <span style="color:#1a5c3a;font-weight:600">空位 ${gStats.empty}</span>`
+      ?`<span style="color:#8b1a1a;font-weight:600">${g.name} ${gOwnAttend}</span> · <span style="color:#8b1a1a">教定借座 ${gBorrowed}</span>${gStats.empty>0?` · <span style="color:#1a5c3a;font-weight:600">空位 ${gStats.empty}</span>`:''}`
       :`<span style="color:#8b1a1a;font-weight:600">出席 ${gOwnAttend}</span> · <span style="color:#1a5c3a;font-weight:600">空位 ${gStats.empty}</span>`
     }</span>
   </div>
@@ -776,7 +795,7 @@ function renderTransport(){
     if(s.status==='attend'&&s.name&&!s.transport)s.transport='undecided';
   })));
   // 設定張德光、姜詠崴等為 self（若還未設定）
-  const selfNames=['張德光','姜詠崴','陳志杰','周晴宣','李玉英','陳羽芯','陳塏侖','周義順','陳錦秀','張素環','蔡志涼','林佳慧','戴瑋德'];
+  const selfNames=['張德光','姜詠崴','陳志杰','周晴宣','李玉英','陳羽芯','陳塏侖','周義順','陳錦秀','張素環','蔡志涼','林佳慧','戴瑋德','蔡梅烽'];
   D.groups.forEach(g=>g.tables.forEach(t=>t.seats.forEach(s=>{
     if(selfNames.includes(s.name)&&s.status==='attend'&&!s.transport)s.transport='self';
   })));
