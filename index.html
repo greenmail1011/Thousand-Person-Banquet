@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -320,7 +321,12 @@ function def(){
       ]},
       {id:'g3',name:'素環',owner:'素環壇主',tables:[
         {id:'t6',label:'第三桌',seats:[
-          ...Array.from({length:6},(_,i)=>({id:'sv'+(i+1),name:'蔡梅烽',status:'attend',note:'',transport:'self',tag:'教定區'})),
+          {id:'sv1',name:'莊銘勳',status:'attend',note:'',transport:'self',tag:'教定區'},
+          {id:'sv2',name:'蔡梅烽',status:'attend',note:'',transport:'self',tag:'教定區'},
+          {id:'sv3',name:'莊佳鳳',status:'attend',note:'',transport:'self',tag:'教定區'},
+          {id:'sv4',name:'楊國隆',status:'attend',note:'',transport:'self',tag:'教定區'},
+          {id:'sv5',name:'楊穎婕',status:'attend',note:'',transport:'self',tag:'教定區'},
+          {id:'sv6',name:'楊姵緹',status:'attend',note:'',transport:'self',tag:'教定區'},
           {id:'sv7',name:'曾玉美',status:'attend',note:'',transport:'bus',tag:'教定區'},
           {id:'sv8',name:'曾安誠',status:'attend',note:'',tag:'教定區'},
         ]},
@@ -375,10 +381,15 @@ function migrate(d){
   if(g3&&!g3.tables.find(t=>t.id==='t6'))
     g3.tables.push({id:'t6',label:'第三桌',seats:[]});
   const t6=g3&&g3.tables.find(t=>t.id==='t6');
-  // 遷移：素環第三桌改為教定借座（蔡梅烽6位＋曾玉美＋曾安誠）
+  // 遷移：素環第三桌改為教定借座（莊銘勳、蔡梅烽、莊佳鳳、楊國隆、楊穎婕、楊姵緹＋曾玉美＋曾安誠）
   if(t6){
     const wanted=[
-      ...Array.from({length:6},(_,i)=>({id:'sv'+(i+1),name:'蔡梅烽',status:'attend',note:'',transport:'self',tag:'教定區'})),
+      {id:'sv1',name:'莊銘勳',status:'attend',note:'',transport:'self',tag:'教定區'},
+      {id:'sv2',name:'蔡梅烽',status:'attend',note:'',transport:'self',tag:'教定區'},
+      {id:'sv3',name:'莊佳鳳',status:'attend',note:'',transport:'self',tag:'教定區'},
+      {id:'sv4',name:'楊國隆',status:'attend',note:'',transport:'self',tag:'教定區'},
+      {id:'sv5',name:'楊穎婕',status:'attend',note:'',transport:'self',tag:'教定區'},
+      {id:'sv6',name:'楊姵緹',status:'attend',note:'',transport:'self',tag:'教定區'},
       {id:'sv7',name:'曾玉美',status:'attend',note:'',transport:'bus',tag:'教定區'},
       {id:'sv8',name:'曾安誠',status:'attend',note:'',tag:'教定區'},
     ];
@@ -786,7 +797,7 @@ function renderTransport(){
     if(s.status==='attend'&&s.name&&!s.transport)s.transport='undecided';
   })));
   // 設定張德光、姜詠崴等為 self（若還未設定）
-  const selfNames=['張德光','姜詠崴','陳志杰','周晴宣','李玉英','陳羽芯','陳塏侖','周義順','陳錦秀','張素環','蔡志涼','林佳慧','戴瑋德','蔡梅烽'];
+  const selfNames=['張德光','姜詠崴','陳志杰','周晴宣','李玉英','陳羽芯','陳塏侖','周義順','陳錦秀','張素環','蔡志涼','林佳慧','戴瑋德','蔡梅烽','莊銘勳','莊佳鳳','楊國隆','楊穎婕','楊姵緹'];
   D.groups.forEach(g=>g.tables.forEach(t=>t.seats.forEach(s=>{
     if(selfNames.includes(s.name)&&s.status==='attend'&&!s.transport)s.transport='self';
   })));
