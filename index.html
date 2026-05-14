@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -290,14 +289,14 @@ function def(){
     groups:[
       {id:'g1',name:'教定區',owner:'',tables:[
         {id:'t1',label:'第一桌',seats:[
-          {id:'a1',name:'謝蜂香',status:'attend',note:''},
-          {id:'a2',name:'謝蜂香',status:'attend',note:''},
-          {id:'a3',name:'謝蜂香',status:'attend',note:''},
-          {id:'a4',name:'謝蜂香',status:'attend',note:''},
-          {id:'a5',name:'謝蜂香',status:'attend',note:''},
-          {id:'a6',name:'謝蜂香',status:'attend',note:''},
-          {id:'a7',name:'謝蜂香',status:'attend',note:''},
-          {id:'a8',name:'謝蜂香',status:'attend',note:''},
+          {id:'a1',name:'謝蜂香',status:'attend',note:'',transport:'self'},
+          {id:'a2',name:'張峻豪',status:'attend',note:'',transport:'self'},
+          {id:'a3',name:'張暐翎',status:'attend',note:'',transport:'self'},
+          {id:'a4',name:'陳威霖',status:'attend',note:'',transport:'self'},
+          {id:'a5',name:'陳信凱',status:'attend',note:'',transport:'self'},
+          {id:'a6',name:'李素英',status:'attend',note:'',transport:'self'},
+          {id:'a7',name:'黃文任',status:'attend',note:''},
+          {id:'a8',name:'邱丰琳',status:'attend',note:''},
           {id:'a9',name:'謝蜂香',status:'attend',note:''},
           {id:'a10',name:'謝蜂香',status:'attend',note:''},
         ]},
@@ -369,6 +368,17 @@ function migrate(d){
 
   // 第一桌蜂香→謝蜂香
   if(g1){const t1=g1.tables.find(t=>t.id==='t1');if(t1)t1.seats.forEach(s=>{if(s.name==='蜂香'||s.name==='謝壇主'||s.name==='道親')s.name='謝蜂香';});}
+  // 第一桌具名遷移（a1~a8）
+  if(g1){const t1=g1.tables.find(t=>t.id==='t1');if(t1){const named=[
+    {id:'a1',name:'謝蜂香',transport:'self'},
+    {id:'a2',name:'張峻豪',transport:'self'},
+    {id:'a3',name:'張暐翎',transport:'self'},
+    {id:'a4',name:'陳威霖',transport:'self'},
+    {id:'a5',name:'陳信凱',transport:'self'},
+    {id:'a6',name:'李素英',transport:'self'},
+    {id:'a7',name:'黃文任'},
+    {id:'a8',name:'邱丰琳'},
+  ];named.forEach(n=>{const s=t1.seats.find(s=>s.id===n.id);if(s){s.name=n.name;if(n.transport)s.transport=n.transport;}});}}
 
   // 素環分組
   if(!d.groups.find(g=>g.id==='g3')){
@@ -607,14 +617,16 @@ function renderTgrid(){
       const yt=(parseFloat(y)+4).toFixed(1);
       const isJD=t.gid==='g1'||(seat.tag==='教定區');
       const isTea=t.gid==='g2'&&!seat.tag;
-      const col=seat.status==='empty'?'#f9eeee':isJD?'#8b1a1a':isTea?'#5b2d8e':'#1a5c3a';
-      const stk=seat.status==='empty'?'#8b1a1a':isJD?'#6d1515':isTea?'#3d1a6e':col;
+      const isReserved=seat.name==='謝蜂香'&&!seat.transport;
+      const col=seat.status==='empty'?'#f9eeee':isReserved?'#fdf3f3':isJD?'#8b1a1a':isTea?'#5b2d8e':'#1a5c3a';
+      const stk=seat.status==='empty'?'#8b1a1a':isReserved?'#8b1a1a':isJD?'#6d1515':isTea?'#3d1a6e':col;
       const dash=seat.status==='empty'?'stroke-dasharray="3 2"':'';
+      const sw=isReserved?'4':'2';
       const rawNm=seat.name||'';
-      const nm=seat.status==='empty'?'空':(rawNm==='謝蜂香'?'謝':(rawNm.length>=3?rawNm.slice(-2):rawNm)||'');
-      const nmFs=nm.length===1?16:13;
-      const tc=seat.status==='attend'?'#fff':'#8b1a1a';
-      return `<circle cx="${x}" cy="${y}" r="${sr}" fill="${col}" stroke="${stk}" stroke-width="2" ${dash} style="cursor:pointer" onclick="openSeat('${t.id}','${seat.id}')"/>
+      const nm=seat.status==='empty'?'空':((rawNm.length>=3?rawNm.slice(-2):rawNm)||'');
+      const nmFs=nm.length<=1?16:nm.length===2?13:nm.length===3?11:9;
+      const tc=isReserved?'#8b1a1a':seat.status==='attend'?'#fff':'#8b1a1a';
+      return `<circle cx="${x}" cy="${y}" r="${sr}" fill="${col}" stroke="${stk}" stroke-width="${sw}" ${dash} style="cursor:pointer" onclick="openSeat('${t.id}','${seat.id}')"/>
 <text x="${x}" y="${yt}" text-anchor="middle" font-size="${nmFs}" font-weight="600" fill="${tc}" font-family="sans-serif" style="pointer-events:none;user-select:none">${nm}</text>`;
     }).join('');
     const isSel=selSeat&&selSeat.tid===t.id;
@@ -724,7 +736,7 @@ function selectTable(tid,silent){
   selSeat={tid};
   if(!silent)renderTgrid();
   const el=document.getElementById('detail');
-  el.style.display='block';
+  el.style.display='none';
   const seatSeats=tbl.seats.filter(s=>s.status!=='donate');
   const donateSeats=tbl.seats.filter(s=>s.status==='donate');
   el.innerHTML=`<h3>${tbl.label} <span style="font-size:12px;color:#888;font-weight:400">· ${tbl.gname} · ${tbl.owner}</span></h3>
@@ -797,7 +809,7 @@ function renderTransport(){
     if(s.status==='attend'&&s.name&&!s.transport)s.transport='undecided';
   })));
   // 設定張德光、姜詠崴等為 self（若還未設定）
-  const selfNames=['張德光','姜詠崴','陳志杰','周晴宣','李玉英','陳羽芯','陳塏侖','周義順','陳錦秀','張素環','蔡志涼','林佳慧','戴瑋德','蔡梅烽','莊銘勳','莊佳鳳','楊國隆','楊穎婕','楊姵緹'];
+  const selfNames=['張德光','姜詠崴','陳志杰','周晴宣','李玉英','陳羽芯','陳塏侖','周義順','陳錦秀','張素環','蔡志涼','林佳慧','戴瑋德','蔡梅烽','莊銘勳','莊佳鳳','楊國隆','楊穎婕','楊姵緹','謝蜂香','張峻豪','張暐翎','陳威霖','陳信凱','李素英'];
   D.groups.forEach(g=>g.tables.forEach(t=>t.seats.forEach(s=>{
     if(selfNames.includes(s.name)&&s.status==='attend'&&!s.transport)s.transport='self';
   })));
